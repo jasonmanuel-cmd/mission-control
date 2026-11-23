@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { toSiteUrl, siteOrigin } from '@/lib/url'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,7 +32,7 @@ async function analyzeWithAI(url: string): Promise<Issue[]> {
 
   try {
     const startTime = Date.now()
-    const response = await fetch(`https://${url}`, {
+    const response = await fetch(toSiteUrl(url), {
       headers: {
         'User-Agent': 'COAI-AIAnalyzer/1.0'
       }
@@ -248,7 +249,7 @@ async function analyzeWithAI(url: string): Promise<Issue[]> {
       fix: {
         type: 'code',
         instructions: 'Add a canonical link tag to specify the preferred URL.',
-        codeSnippet: `<link rel="canonical" href="https://${url}/">`,
+        codeSnippet: `<link rel="canonical" href="${siteOrigin(url)}/">`,
         estimatedTime: '5 min'
       }
     })
