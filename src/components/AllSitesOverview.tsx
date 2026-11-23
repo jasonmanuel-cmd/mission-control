@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import TrendChart from './TrendChart'
 import { getHistory } from '@/lib/storage'
+import { toSiteUrl } from '@/lib/url'
 
 export interface SiteStatus {
   id: string
@@ -177,7 +178,7 @@ export default function AllSitesOverview({ onSiteClick, userSites }: AllSitesOve
                   <div>
                     <h3 className="text-lg font-semibold text-white">{site.name}</h3>
                     <a
-                      href={`https://${site.url}`}
+                      href={toSiteUrl(site.url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}

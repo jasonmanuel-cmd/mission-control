@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { toSiteUrl } from '@/lib/url'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,7 +82,7 @@ async function checkSiteStatus(url: string): Promise<{ online: boolean; response
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
-    const response = await fetch(`https://${url}`, {
+    const response = await fetch(toSiteUrl(url), {
       method: 'HEAD',
       signal: controller.signal,
       headers: {
