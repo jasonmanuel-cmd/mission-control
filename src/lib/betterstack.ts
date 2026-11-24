@@ -5,7 +5,7 @@
  * for monitoring uptime, response times, and incident management.
  */
 
-interface Monitor {
+export interface Monitor {
   id: string
   type: string
   attributes: {

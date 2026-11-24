@@ -72,13 +72,7 @@ export default function SiteSelector({
                              site.id === activeSite.id ? 'bg-neon-purple-500/10' : ''
                            }`}
                 >
-                  <div className={`w-2 h-2 rounded-full ${
-                    site.metrics?.uptime === 100
-                      ? 'bg-electric-green-500'
-                      : site.metrics?.uptime && site.metrics.uptime >= 99
-                      ? 'bg-cyber-yellow'
-                      : 'bg-cyber-red'
-                  }`} />
+                  <div className="w-2 h-2 rounded-full bg-gray-600" />
                   <div className="flex-1 text-left">
                     <div className="text-sm font-medium text-white">{site.name}</div>
                     <div className="text-xs text-gray-500">
@@ -86,15 +80,6 @@ export default function SiteSelector({
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {site.metrics && (
-                      <span className={`text-xs font-mono ${
-                        site.metrics.performance >= 80
-                          ? 'text-electric-green-500'
-                          : 'text-neon-purple-500'
-                      }`}>
-                        {site.metrics.performance}/100
-                      </span>
-                    )}
                     {site.id === activeSite.id && (
                       <Check className="w-4 h-4 text-neon-purple-500" />
                     )}
