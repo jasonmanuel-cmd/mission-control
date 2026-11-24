@@ -3,24 +3,31 @@ import type { SiteAlertState } from './decide'
 
 export type Exec = (text: string, params?: unknown[]) => Promise<Record<string, unknown>[]>
 
-export interface AlertStore {
-  load(): Promise<Record<string, SiteAlertState>>
-  save(state: Record<string, SiteAlertState>): Promise<void>
+export interface StateStore<T> {
+  load(): Promise<Record<string, T>>
+  save(state: Record<string, T>): Promise<void>
 }
 
-const CREATE_TABLE = `
-  CREATE TABLE IF NOT EXISTS alert_state (
-    site_id text PRIMARY KEY,
-    state jsonb NOT NULL,
-    updated_at timestamptz NOT NULL DEFAULT now()
-  )`
+export type AlertStore = StateStore<SiteAlertState>
 
-/** Postgres-backed alert state. The table is created on first use. */
-export function createPgStore(exec: Exec): AlertStore {
+const TABLE_NAME = /^[a-z_]+$/
+
+/**
+ * Postgres-backed key/value state (site_id -> jsonb). The table is created on first use.
+ * `table` is interpolated into SQL, so it must be a constant lowercase identifier.
+ */
+export function createPgStateStore<T>(exec: Exec, table: string): StateStore<T> {
+  if (!TABLE_NAME.test(table)) throw new Error(`invalid table name: ${JSON.stringify(table)}`)
+
   let ready: Promise<unknown> | null = null
   const ensureTable = () => {
     if (!ready) {
-      ready = exec(CREATE_TABLE).catch(err => {
+      ready = exec(`
+        CREATE TABLE IF NOT EXISTS ${table} (
+          site_id text PRIMARY KEY,
+          state jsonb NOT NULL,
+          updated_at timestamptz NOT NULL DEFAULT now()
+        )`).catch(err => {
         ready = null // allow a retry on the next call
         throw err
       })
@@ -31,32 +38,37 @@ export function createPgStore(exec: Exec): AlertStore {
   return {
     async load() {
       await ensureTable()
-      const rows = await exec('SELECT site_id, state FROM alert_state')
-      const out: Record<string, SiteAlertState> = {}
+      const rows = await exec(`SELECT site_id, state FROM ${table}`)
+      const out: Record<string, T> = {}
       for (const r of rows) {
         const state = typeof r.state === 'string' ? JSON.parse(r.state) : r.state
-        out[r.site_id as string] = state as SiteAlertState
+        out[r.site_id as string] = state as T
       }
       return out
     },
 
     async save(state) {
       await ensureTable()
-      // One statement = atomic: upsert every present site and delete the rest together.
+      // One statement = atomic: upsert every present key and delete the rest together.
       await exec(
         `WITH input AS (
            SELECT key AS site_id, value AS state FROM jsonb_each($1::jsonb)
          ), upserted AS (
-           INSERT INTO alert_state (site_id, state, updated_at)
+           INSERT INTO ${table} (site_id, state, updated_at)
            SELECT site_id, state, now() FROM input
            ON CONFLICT (site_id) DO UPDATE SET state = EXCLUDED.state, updated_at = now()
            RETURNING site_id
          )
-         DELETE FROM alert_state WHERE site_id NOT IN (SELECT site_id FROM input)`,
+         DELETE FROM ${table} WHERE site_id NOT IN (SELECT site_id FROM input)`,
         [JSON.stringify(state)]
       )
     },
   }
+}
+
+/** Alert state (last status per site). */
+export function createPgStore(exec: Exec): AlertStore {
+  return createPgStateStore<SiteAlertState>(exec, 'alert_state')
 }
 
 /** Wrap a Neon connection string as an Exec. */
