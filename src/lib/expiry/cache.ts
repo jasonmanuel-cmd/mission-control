@@ -4,7 +4,10 @@ import type { ExpiryPart } from './parts'
 export interface SiteExpiry {
   ssl: ExpiryPart
   domain: ExpiryPart
+  /** When the full lookup ran; the 12h refresh clock. */
   checkedAt: string
+  /** When a nodata part was last re-tried on its own; spaces retries so a rate-limited registry is not hammered. */
+  retriedAt?: string
 }
 
 export interface ExpiryCache {

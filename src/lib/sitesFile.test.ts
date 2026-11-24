@@ -7,12 +7,14 @@ import { readSites } from './sites'
 const VERIFIED: Record<string, { vercelProject: string; githubRepo: string }> = {
   'https://coaibakersfield.com': { vercelProject: 'coaibakersfield', githubRepo: 'jasonmanuel-cmd/coainewweb' },
   'https://phils-cheesesteaks-and-more.com': { vercelProject: 'phillycheesesteak', githubRepo: 'jasonmanuel-cmd/phillycheesesteak' },
-  'https://edwinwardconsulting.com': { vercelProject: 'edwin', githubRepo: 'jasonmanuel-cmd/edwin' },
   'https://coaibuilds.com': { vercelProject: 'tradinglanding', githubRepo: 'jasonmanuel-cmd/tradinglanding' },
   'https://tandmbak.com': { vercelProject: 'tandm-hauling-bakersfield', githubRepo: 'jasonmanuel-cmd/tandm' },
   'https://williamdeanrealphotography.com': { vercelProject: 'williamdean', githubRepo: 'jasonmanuel-cmd/williamdean' },
   'https://poisonwellrecords.com': { vercelProject: 'poisonrecord', githubRepo: 'jasonmanuel-cmd/poisonrecord' },
   'https://homegrowmoney.com': { vercelProject: 'greenhome-6cx9', githubRepo: 'jasonmanuel-cmd/greenhome' },
+  'https://callharbison.com': { vercelProject: 'hbh', githubRepo: 'jasonmanuel-cmd/HBH' },
+  'https://aspen2homes.com': { vercelProject: 'aspen2-astro-preview', githubRepo: 'jasonmanuel-cmd/apen2website' },
+  'https://mgsusa.llc': { vercelProject: 'mgsusa-llc', githubRepo: 'jasonmanuel-cmd/mgsusa.llc' },
 }
 
 const loadReal = () => readSites(path.resolve(__dirname, '../../sites.json'))
@@ -29,6 +31,17 @@ describe('the committed sites.json', () => {
     expect(site).toBeDefined()
     expect(site!.vercelProject).toBe(expected.vercelProject)
     expect(site!.githubRepo).toBe(expected.githubRepo)
+  })
+
+  it('has dropped the sites that were removed', async () => {
+    const urls = (await loadReal()).map(s => s.url)
+    expect(urls).not.toContain('https://edwinwardconsulting.com')
+    expect(urls).not.toContain('https://dffbseniorliving.com')
+  })
+
+  it('has no site pointing at a domain that does not exist (callharbibson was a typo for callharbison)', async () => {
+    const urls = (await loadReal()).map(s => s.url)
+    expect(urls).not.toContain('https://callharbibson.com')
   })
 
   it('every vercelProject and githubRepo that is set is well-formed', async () => {
