@@ -6,7 +6,7 @@ import { readSites } from './sites'
 // Each site must point at the Vercel project that actually serves its domain, and the repo that deploys it.
 const VERIFIED: Record<string, { vercelProject: string; githubRepo: string }> = {
   'https://coaibakersfield.com': { vercelProject: 'coaibakersfield', githubRepo: 'jasonmanuel-cmd/coainewweb' },
-  'https://phils-cheesesteaks-and-more.com': { vercelProject: 'phillycheesesteak', githubRepo: 'jasonmanuel-cmd/phillycheesesteak' },
+  'https://bakersfieldcheesesteak.com': { vercelProject: 'phillycheesesteak', githubRepo: 'jasonmanuel-cmd/phillycheesesteak' },
   'https://coaibuilds.com': { vercelProject: 'tradinglanding', githubRepo: 'jasonmanuel-cmd/tradinglanding' },
   'https://tandmbak.com': { vercelProject: 'tandm-hauling-bakersfield', githubRepo: 'jasonmanuel-cmd/tandm' },
   'https://williamdeanrealphotography.com': { vercelProject: 'williamdean', githubRepo: 'jasonmanuel-cmd/williamdean' },
@@ -31,6 +31,13 @@ describe('the committed sites.json', () => {
     expect(site).toBeDefined()
     expect(site!.vercelProject).toBe(expected.vercelProject)
     expect(site!.githubRepo).toBe(expected.githubRepo)
+  })
+
+  it("monitors Phil's on its live domain, not the old one that has no DNS records", async () => {
+    const sites = await loadReal()
+    const urls = sites.map(s => s.url)
+    expect(urls).not.toContain('https://phils-cheesesteaks-and-more.com')
+    expect(sites.find(s => s.url === 'https://bakersfieldcheesesteak.com')?.name).toMatch(/Phil/)
   })
 
   it('has dropped the sites that were removed', async () => {
