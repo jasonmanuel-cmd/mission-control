@@ -36,7 +36,7 @@ Secrets are server-side env vars only (see `.env.example`):
 | Variable | Used for |
 |---|---|
 | `BETTER_STACK_UPTIME_API_KEY` | uptime |
-| `VERCEL_TOKEN`, `VERCEL_TEAM_ID` (optional) | latest deploy |
+| `VERCEL_TOKEN`, `VERCEL_TEAM_ID` | latest production deploy. The team id is required because every project lives in a team; without it the lookup returns 404 and shows "no data" |
 
 ## Expiry warnings
 

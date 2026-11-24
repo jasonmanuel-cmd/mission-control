@@ -21,6 +21,11 @@ interface Issue {
   aiSuggestion?: string
 }
 
+/** A complete, strict-JSON vercel.json fragment that sets one response header on every path. */
+function vercelHeaderSnippet(key: string, value: string): string {
+  return JSON.stringify({ headers: [{ source: '/(.*)', headers: [{ key, value }] }] }, null, 2)
+}
+
 // Analyze a website and generate AI-powered fix recommendations
 async function analyzeWithAI(url: string): Promise<Issue[]> {
   const issues: Issue[] = []
@@ -137,22 +142,12 @@ async function analyzeWithAI(url: string): Promise<Issue[]> {
       impact: 'Without CSP, your site is more vulnerable to XSS attacks and data injection.',
       fix: {
         type: 'code',
-        instructions: 'Add a Content-Security-Policy header in vercel.json (or the headers config of your framework).',
-        codeSnippet: `// vercel.json
-{
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'" }
-      ]
-    }
-  ]
-}`,
+        instructions: 'Merge this into the "headers" array of vercel.json (or the headers config of your framework).',
+        codeSnippet: vercelHeaderSnippet('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"),
         filePath: 'vercel.json',
         estimatedTime: '20 min'
       },
-      aiSuggestion: 'Start with a basic CSP policy and gradually tighten it. Monitor for violations using the report-uri directive before enforcing.'
+      aiSuggestion: 'Start with a basic CSP policy and gradually tighten it. Monitor for violations using the report-uri directive before enforcing. If the site uses Vercel Analytics or Speed Insights, allow script-src https://va.vercel-scripts.com (and https://vercel.live for the preview toolbar) or the policy will block them.'
     })
   }
 
@@ -166,18 +161,8 @@ async function analyzeWithAI(url: string): Promise<Issue[]> {
       impact: 'Without HSTS, browsers may load your site over insecure HTTP, exposing users to man-in-the-middle attacks.',
       fix: {
         type: 'code',
-        instructions: 'Add HSTS header to enforce HTTPS connections.',
-        codeSnippet: `// vercel.json
-{
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains; preload" }
-      ]
-    }
-  ]
-}`,
+        instructions: 'Merge this into the "headers" array of vercel.json to enforce HTTPS connections.',
+        codeSnippet: vercelHeaderSnippet('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload'),
         filePath: 'vercel.json',
         estimatedTime: '10 min'
       },
@@ -195,9 +180,8 @@ async function analyzeWithAI(url: string): Promise<Issue[]> {
       impact: 'Your site could be embedded in malicious iframes for clickjacking attacks.',
       fix: {
         type: 'code',
-        instructions: 'Add X-Frame-Options header to prevent clickjacking.',
-        codeSnippet: `// vercel.json headers entry
-{ "key": "X-Frame-Options", "value": "DENY" }`,
+        instructions: 'Merge this into the "headers" array of vercel.json to prevent clickjacking.',
+        codeSnippet: vercelHeaderSnippet('X-Frame-Options', 'DENY'),
         filePath: 'vercel.json',
         estimatedTime: '5 min'
       }

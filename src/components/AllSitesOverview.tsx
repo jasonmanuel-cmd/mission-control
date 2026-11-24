@@ -295,7 +295,7 @@ export default function AllSitesOverview({ onSiteClick }: AllSitesOverviewProps)
                 {/* Last Checked */}
                 <div className="flex items-center gap-1 text-xs text-gray-500">
                   <Server className="w-3 h-3" />
-                  <span>Vercel</span>
+                  <span>{site.vercelProject ? 'Vercel' : 'No Vercel project'}</span>
                 </div>
               </div>
             </div>

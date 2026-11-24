@@ -82,6 +82,26 @@ describe('checkVercelDeploy', () => {
   })
 })
 
+describe('checkVercelDeploy only judges what is live', () => {
+  const okBody = () => new Response(JSON.stringify({ deployments: [{ state: 'READY', created: 1, meta: {} }] }), { status: 200 })
+
+  it('asks for production deployments only (a failed preview must not read as the site being down)', async () => {
+    const f = vi.fn().mockResolvedValue(okBody())
+    await checkVercelDeploy('p', { token: 't' }, f as any)
+    expect(f.mock.calls[0][0]).toContain('target=production')
+  })
+
+  it('never asks for canceled deployments (a canceled build says nothing about what is live)', async () => {
+    const f = vi.fn().mockResolvedValue(okBody())
+    await checkVercelDeploy('p', { token: 't' }, f as any)
+    const state = new URL(f.mock.calls[0][0]).searchParams.get('state') ?? ''
+    expect(state).toContain('READY')
+    expect(state).toContain('ERROR')
+    expect(state).toContain('BUILDING')
+    expect(state).not.toContain('CANCELED')
+  })
+})
+
 describe('toLegacyDeployStatus', () => {
   it('maps a ready deploy to success with an ISO time', () => {
     const createdAt = Date.parse('2026-11-24T00:00:00Z')

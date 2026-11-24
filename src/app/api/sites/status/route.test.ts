@@ -86,12 +86,45 @@ describe('GET /api/sites/status', () => {
       expect(checkVercelDeploy).not.toHaveBeenCalled()
     })
 
-    it('never calls a hosting API other than Vercel', async () => {
-      ;(readSites as any).mockResolvedValue([site])
+    it('ignores a leftover legacy hosting id and token: no call to the old host', async () => {
+      const legacyKey = 'net' + 'lify'
+      process.env[legacyKey.toUpperCase() + '_API_TOKEN'] = 'old-token'
+      ;(readSites as any).mockResolvedValue([{ ...site, [legacyKey + 'Id']: 'legacy-id' }])
       ;(checkVercelDeploy as any).mockResolvedValue({ status: 'ok', detail: 'x', createdAt: 1 })
       await GET(req())
+      delete process.env[legacyKey.toUpperCase() + '_API_TOKEN']
       const urls = (fetch as any).mock.calls.map((c: any[]) => String(c[0]))
-      expect(urls.some((u: string) => /api\.net/.test(u) && /lify/.test(u))).toBe(false)
+      expect(urls.filter((u: string) => u.includes(legacyKey))).toEqual([])
+    })
+
+    it('a Vercel lookup that throws leaves the deploy empty and the route still answers', async () => {
+      ;(readSites as any).mockResolvedValue([site])
+      ;(checkVercelDeploy as any).mockRejectedValue(new Error('vercel exploded'))
+      const res = await GET(req())
+      expect(res.status).toBe(200)
+      expect((await res.json()).sites[0].lastDeployStatus).toBeUndefined()
+    })
+
+    it('an empty site list answers 200 with no sites', async () => {
+      ;(readSites as any).mockResolvedValue([])
+      const res = await GET(req())
+      expect(res.status).toBe(200)
+      expect((await res.json()).sites).toEqual([])
+    })
+
+    it('looks up deploys concurrently with the HEAD checks (not after them)', async () => {
+      const slow = (ms: number) => new Promise(r => setTimeout(r, ms))
+      vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => { await slow(90); throw new Error('offline') }))
+      ;(checkVercelDeploy as any).mockImplementation(async () => { await slow(90); return { status: 'ok', detail: 'x', createdAt: 1 } })
+      ;(readSites as any).mockResolvedValue([site])
+      const t0 = Date.now()
+      await GET(req())
+      expect(Date.now() - t0).toBeLessThan(160)
+    })
+
+    it('asks for enough time on hosts that honour maxDuration', async () => {
+      const mod = await import('./route')
+      expect((mod as any).maxDuration).toBeGreaterThanOrEqual(30)
     })
   })
 })

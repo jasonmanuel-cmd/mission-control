@@ -11,7 +11,14 @@ export async function checkVercelDeploy(
   if (!project) return { status: 'nodata', detail: 'no vercelProject configured', unconfigured: true }
   if (!env.token) return { status: 'nodata', detail: 'VERCEL_TOKEN not set', unconfigured: true }
 
-  const params = new URLSearchParams({ projectId: project, limit: '1' })
+  // Production only: a failed preview build on a PR branch says nothing about whether the live site is up.
+  // CANCELED is left out of the states so a canceled build never masks (or fakes) what is actually live.
+  const params = new URLSearchParams({
+    projectId: project,
+    limit: '1',
+    target: 'production',
+    state: 'BUILDING,ERROR,INITIALIZING,QUEUED,READY',
+  })
   if (env.teamId) params.set('teamId', env.teamId)
 
   const controller = new AbortController()

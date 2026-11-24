@@ -4,6 +4,8 @@ import { readSites } from '@/lib/sites'
 import { checkVercelDeploy, toLegacyDeployStatus } from '@/lib/triage/vercel'
 
 export const dynamic = 'force-dynamic'
+// HEAD checks (10s each) + Better Stack + Vercel lookups can exceed a 10s default on hosts that honour this.
+export const maxDuration = 30
 
 interface SiteStatus {
   id: string
@@ -127,23 +129,22 @@ export async function GET(request: NextRequest) {
     const vercelEnv = { token: process.env.VERCEL_TOKEN, teamId: process.env.VERCEL_TEAM_ID }
 
 
-    // Fetch Better Stack data in parallel with site checks
+    // Latest Vercel deploy per site (only for sites that have a vercelProject). Started now so it runs
+    // alongside the HEAD checks and Better Stack instead of after them.
+    const deployPromises = allSites.map(async site => {
+      if (!site.vercelProject) return undefined
+      try {
+        return toLegacyDeployStatus(await checkVercelDeploy(site.vercelProject, vercelEnv))
+      } catch {
+        return undefined
+      }
+    })
+
     const [betterStackData, ...siteChecks] = await Promise.all([
       fetchBetterStackData(betterStackKey),
       ...allSites.map(site => checkSiteStatus(site.url))
     ])
-
-    // Latest Vercel deploy per site (only for sites that have a vercelProject)
-    const deployStatuses = await Promise.all(
-      allSites.map(async site => {
-        if (!site.vercelProject) return undefined
-        try {
-          return toLegacyDeployStatus(await checkVercelDeploy(site.vercelProject, vercelEnv))
-        } catch {
-          return undefined
-        }
-      })
-    )
+    const deployStatuses = await Promise.all(deployPromises)
 
     // Build response
     const sites: SiteStatus[] = allSites.map((site, index) => {
