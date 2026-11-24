@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { decideAlerts, FAIL_CONFIRM_RUNS, type SiteAlertState } from './decide'
 import type { SiteTriage } from '@/lib/triage/run'
-import type { PartStatus } from '@/lib/triage/status'
+import { worstStatus, type PartStatus } from '@/lib/triage/status'
 
 const T0 = '2026-11-24T10:00:00.000Z'
 const T1 = '2026-11-24T10:05:00.000Z'
@@ -13,7 +13,7 @@ function row(id: string, over: Partial<Record<'uptime' | 'live' | 'deploy', Part
   const live = part(over.live, over.live === 'fail' ? 'HTTP 503' : 'HTTP 200')
   const deploy = part(over.deploy, 'deployed')
   const parts = [uptime.status, live.status, deploy.status]
-  const computed: PartStatus = parts.includes('fail') ? 'fail' : parts.includes('warn') ? 'warn' : parts.every(p => p === 'nodata') ? 'nodata' : 'ok'
+  const computed: PartStatus = worstStatus(parts)
   return { id, name: `Site ${id}`, url: `https://${id}.com`, uptime, live, deploy, overall: overall ?? computed, checkedAt: T0 }
 }
 const failing = (id: string) => row(id, { live: 'fail' })
@@ -58,13 +58,27 @@ describe('decideAlerts', () => {
     expect(next.a).toMatchObject({ status: 'ok', failStreak: 0, alerted: false })
   })
 
-  it.each(['ok', 'warn', 'nodata'] as PartStatus[])('recovery to %s sends one recovered alert with the original since', status => {
+  it('recovery to a clean ok sends one recovered alert with the original since', () => {
     const alerted: Record<string, SiteAlertState> = { a: { status: 'fail', failStreak: 5, alerted: true, since: T0 } }
-    const healthy = status === 'nodata' ? row('a', { uptime: 'nodata', live: 'nodata', deploy: 'nodata' }) : row('a', { live: status })
-    const { alerts, next } = decideAlerts(alerted, [healthy], T2)
+    const { alerts, next } = decideAlerts(alerted, [row('a')], T2)
     expect(alerts).toHaveLength(1)
     expect(alerts[0]).toMatchObject({ kind: 'recovered', siteId: 'a', since: T0 })
     expect(next.a).toMatchObject({ status: 'ok', failStreak: 0, alerted: false })
+  })
+
+  it.each(['warn', 'nodata'] as PartStatus[])('an alerted site reading %s is not treated as recovered (flaky data source)', status => {
+    const prev: Record<string, SiteAlertState> = { a: { status: 'fail', failStreak: 5, alerted: true, since: T0 } }
+    const flaky = status === 'nodata' ? row('a', { uptime: 'nodata', live: 'nodata', deploy: 'nodata' }) : row('a', { deploy: 'nodata' })
+    const { alerts, next } = decideAlerts(prev, [flaky], T2)
+    expect(alerts).toEqual([])
+    expect(next.a).toEqual(prev.a)
+  })
+
+  it('flaky read then a clean ok sends exactly one recovered alert and no extra down', () => {
+    let state: Record<string, SiteAlertState> = { a: { status: 'fail', failStreak: 5, alerted: true, since: T0 } }
+    state = decideAlerts(state, [row('a', { deploy: 'nodata' })], T1).next
+    const r = decideAlerts(state, [row('a')], T2)
+    expect(r.alerts.map(a => a.kind)).toEqual(['recovered'])
   })
 
   it('warn and nodata rows never alert', () => {

@@ -11,13 +11,11 @@ function fakeDb() {
     const t = text.trim().toUpperCase()
     if (t.startsWith('CREATE TABLE')) return []
     if (t.startsWith('SELECT')) return [...rows].map(([site_id, state]) => ({ site_id, state }))
-    if (t.startsWith('INSERT')) {
-      rows.set(params[0] as string, JSON.parse(params[1] as string))
-      return []
-    }
-    if (t.startsWith('DELETE')) {
-      const keep = new Set((params[0] as string[] | undefined) ?? [])
-      for (const k of [...rows.keys()]) if (!keep.has(k)) rows.delete(k)
+    if (t.startsWith('WITH')) {
+      // single atomic statement: params[0] is the full desired state as JSON
+      const desired = JSON.parse(params[0] as string) as Record<string, unknown>
+      rows.clear()
+      for (const [k, v] of Object.entries(desired)) rows.set(k, v)
       return []
     }
     throw new Error(`unexpected SQL: ${text}`)
@@ -65,5 +63,14 @@ describe('createPgStore', () => {
     const boom: Exec = async () => { throw new Error('connection refused') }
     await expect(createPgStore(boom).load()).rejects.toThrow('connection refused')
     await expect(createPgStore(boom).save({ a: s() })).rejects.toThrow('connection refused')
+  })
+
+  it('save is one atomic statement (no partial writes)', async () => {
+    const db = fakeDb()
+    const store = createPgStore(db.exec)
+    await store.load() // creates the table
+    const before = db.log.length
+    await store.save({ a: s(), b: s(), c: s() })
+    expect(db.log.length - before).toBe(1)
   })
 })

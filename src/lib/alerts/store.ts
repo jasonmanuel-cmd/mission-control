@@ -42,15 +42,19 @@ export function createPgStore(exec: Exec): AlertStore {
 
     async save(state) {
       await ensureTable()
-      const ids = Object.keys(state)
-      for (const id of ids) {
-        await exec(
-          `INSERT INTO alert_state (site_id, state, updated_at) VALUES ($1, $2::jsonb, now())
-           ON CONFLICT (site_id) DO UPDATE SET state = EXCLUDED.state, updated_at = now()`,
-          [id, JSON.stringify(state[id])]
-        )
-      }
-      await exec('DELETE FROM alert_state WHERE NOT (site_id = ANY($1::text[]))', [ids])
+      // One statement = atomic: upsert every present site and delete the rest together.
+      await exec(
+        `WITH input AS (
+           SELECT key AS site_id, value AS state FROM jsonb_each($1::jsonb)
+         ), upserted AS (
+           INSERT INTO alert_state (site_id, state, updated_at)
+           SELECT site_id, state, now() FROM input
+           ON CONFLICT (site_id) DO UPDATE SET state = EXCLUDED.state, updated_at = now()
+           RETURNING site_id
+         )
+         DELETE FROM alert_state WHERE site_id NOT IN (SELECT site_id FROM input)`,
+        [JSON.stringify(state)]
+      )
     },
   }
 }

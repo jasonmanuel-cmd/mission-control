@@ -63,6 +63,18 @@ describe('GET /api/cron/alerts', () => {
     expect(await res.json()).toEqual({ checked: 9, alerts: 1, delivered: true, detail: 'sent 1 alert(s)' })
   })
 
+  it('502 when alerts could not be delivered, so the workflow turns red', async () => {
+    ;(runAlertCheck as any).mockResolvedValue({ checked: 9, alerts: 1, delivered: false, detail: 'RESEND_API_KEY not set' })
+    const res = await GET(req('Bearer s3cret'))
+    expect(res.status).toBe(502)
+    expect(await res.json()).toMatchObject({ delivered: false, detail: 'RESEND_API_KEY not set' })
+  })
+
+  it('exports a maxDuration so slow checks are not cut off', async () => {
+    const mod = await import('./route')
+    expect((mod as any).maxDuration).toBeGreaterThanOrEqual(30)
+  })
+
   it('500 JSON when the run throws (e.g. store unreachable)', async () => {
     ;(runAlertCheck as any).mockRejectedValue(new Error('connection refused'))
     const res = await GET(req('Bearer s3cret'))

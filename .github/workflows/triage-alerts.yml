@@ -27,6 +27,6 @@ jobs:
             echo "ALERT_CRON_SECRET and ALERT_APP_URL repo secrets must be set" >&2
             exit 1
           fi
-          curl --fail-with-body -sS --max-time 60 \
+          curl --fail-with-body -sS --max-time 60 --retry 2 --retry-all-errors --retry-delay 5 \
             -H "Authorization: Bearer $ALERT_CRON_SECRET" \
             "$ALERT_APP_URL/api/cron/alerts"

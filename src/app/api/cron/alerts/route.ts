@@ -7,6 +7,8 @@ import { sendAlertEmail } from '@/lib/alerts/email'
 import { isAuthorized } from '@/lib/alerts/auth'
 
 export const dynamic = 'force-dynamic'
+// Triage (live probe 8s) + email (8s) + database can exceed 10s; hosts that honour this get room.
+export const maxDuration = 60
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
@@ -35,7 +37,8 @@ export async function GET(request: NextRequest) {
         }),
       now: () => new Date().toISOString(),
     })
-    return NextResponse.json(result)
+    // Non-2xx when alerts could not be delivered, so the GitHub workflow turns red instead of failing silently.
+    return NextResponse.json(result, { status: result.delivered ? 200 : 502 })
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message ?? err) }, { status: 500 })
   }

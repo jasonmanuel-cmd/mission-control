@@ -36,7 +36,8 @@ function reasonsFor(site: SiteTriage): string[] {
 }
 
 /**
- * Pure alert decision. Only overall === 'fail' counts as failing; warn/nodata/unconfigured never alert.
+ * Pure alert decision. Only overall === 'fail' counts as failing; warn/nodata/unconfigured never alert,
+ * and an already-alerted site recovers only on a clean 'ok'.
  * Sites missing from `current` are dropped from the returned state.
  */
 export function decideAlerts(
@@ -61,6 +62,12 @@ export function decideAlerts(
       }
       next[site.id] = { status: 'fail', failStreak, alerted, since: streakStart }
     } else {
+      // Once alerted, only a clean 'ok' counts as recovered. A warn/nodata row may just be a
+      // flaky data source (timeout) hiding a still-failing part, so keep the state and say nothing.
+      if (before?.status === 'fail' && before.alerted && site.overall !== 'ok') {
+        next[site.id] = before
+        continue
+      }
       if (before?.status === 'fail' && before.alerted) {
         alerts.push({ kind: 'recovered', ...base, reasons: [], since: before.since })
       }
