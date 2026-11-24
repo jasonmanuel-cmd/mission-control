@@ -39,6 +39,16 @@ Secrets are server-side env vars only (see `.env.example`):
 | `BETTER_STACK_UPTIME_API_KEY` | uptime |
 | `VERCEL_TOKEN`, `VERCEL_TEAM_ID` (optional) | latest deploy |
 
+## Expiry warnings
+
+Each triage row has an **Expiry** cell with SSL and domain days left (`SSL 62d · Domain 288d`). Amber at 30 days or fewer for domains and 14 or fewer for SSL, red at 7 or fewer, grey "no data" when a lookup fails. (SSL warns later because certificates auto-renew around 30 days out and routinely sit at 29-30 days; only a renewal that has gone wrong reaches 14.) It is informational: it never changes the row colour or triggers a DOWN email.
+
+- **Emails** (through the same 5-minute alert run): once each when a domain first drops to 30, 14, 7, 3 and 1 days (SSL: 14, 7, 3 and 1), and once on expiry. If a site is first seen at 5 days you get one email (the 7-day one), not several. A renewal (later expiry date) re-arms everything with no email.
+- **Sources:** SSL is read directly from the site's certificate. Domain expiry comes from RDAP via `rdap.org` (free, no key, `.com` and most TLDs). Subdomains are reduced to the registrable domain; a few multi-part suffixes (`co.uk`, `com.au`, ...) are built in, others may need adding in `src/lib/expiry/parts.ts`.
+- **Cache:** lookups are cached for 12 hours in your Postgres (`expiry_cache`) so we don't hammer registries. Without `DATABASE_URL` the board looks up live every refresh.
+- **Failed lookups never alarm:** a timeout or refusal is "no data", not "expired".
+- **State:** which thresholds were already emailed lives in `expiry_alert_state` (created automatically).
+
 ## Push alerts
 
 A GitHub Actions workflow (`.github/workflows/triage-alerts.yml`) calls `GET /api/cron/alerts` every 5 minutes (GitHub may delay scheduled runs by a few minutes).
