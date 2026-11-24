@@ -23,8 +23,8 @@ export function createPgExpiryCache(exec: Exec): ExpiryCache {
       return Number.isFinite(age) && age <= maxAgeMs ? hit : null
     },
     async set(siteId, value) {
-      const all = await store.load()
-      await store.save({ ...all, [siteId]: value })
+      // Per-key upsert: parallel writers (all sites at once) must not delete each other's rows.
+      await store.upsert(siteId, value)
     },
   }
 }

@@ -10,9 +10,14 @@ function fakeDb() {
   const rowsOf = (t: string) => { if (!tables.has(t)) tables.set(t, new Map()); return tables.get(t)! }
   const exec: Exec = async (text, params = []) => {
     sql.push(text)
+    await new Promise(r => setTimeout(r, 1)) // yield, so parallel callers interleave like real network calls
     const t = text.trim().toUpperCase()
     if (t.startsWith('CREATE TABLE')) return []
     if (t.startsWith('SELECT')) return [...rowsOf(tableOf(text))].map(([site_id, state]) => ({ site_id, state }))
+    if (t.startsWith('INSERT')) {
+      rowsOf(tableOf(text)).set(params[0] as string, JSON.parse(params[1] as string))
+      return []
+    }
     if (t.startsWith('WITH')) {
       const rows = rowsOf(tableOf(text.slice(text.indexOf('INSERT'))))
       const desired = JSON.parse(params[0] as string) as Record<string, unknown>
@@ -86,5 +91,14 @@ describe('createPgExpiryCache', () => {
     const boom: Exec = async () => { throw new Error('connection refused') }
     await expect(createPgExpiryCache(boom).get('a', HOUR, NOW)).rejects.toThrow('connection refused')
     await expect(createPgExpiryCache(boom).set('a', expiry(new Date(NOW).toISOString()))).rejects.toThrow('connection refused')
+  })
+
+  it('parallel writers for different sites all survive (no clobbering)', async () => {
+    const cache = createPgExpiryCache(fakeDb().exec)
+    const fresh = new Date(NOW - HOUR).toISOString()
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']
+    await Promise.all(ids.map(id => cache.set(id, expiry(fresh))))
+    const hits = await Promise.all(ids.map(id => cache.get(id, 12 * HOUR, NOW)))
+    expect(hits.every(h => h !== null)).toBe(true)
   })
 })

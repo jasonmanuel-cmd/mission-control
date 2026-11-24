@@ -95,4 +95,11 @@ describe('checkSSL', () => {
     silent.close()
     expect(info.error).toMatch(/timed out/i)
   })
+
+  it('an invalid port becomes an error result (no rejection, no stray timer)', async () => {
+    const info = await checkSSL('localhost', 200, 99999)
+    expect(info.valid).toBe(false)
+    expect(info.error).toBeDefined()
+    await new Promise(r => setTimeout(r, 350)) // a leaked timer would throw here
+  })
 })

@@ -8,6 +8,11 @@ export interface StateStore<T> {
   save(state: Record<string, T>): Promise<void>
 }
 
+/** Adds a single-key upsert that never deletes other keys (safe for parallel writers). */
+export interface KeyedStateStore<T> extends StateStore<T> {
+  upsert(key: string, value: T): Promise<void>
+}
+
 export type AlertStore = StateStore<SiteAlertState>
 
 const TABLE_NAME = /^[a-z_]+$/
@@ -16,7 +21,7 @@ const TABLE_NAME = /^[a-z_]+$/
  * Postgres-backed key/value state (site_id -> jsonb). The table is created on first use.
  * `table` is interpolated into SQL, so it must be a constant lowercase identifier.
  */
-export function createPgStateStore<T>(exec: Exec, table: string): StateStore<T> {
+export function createPgStateStore<T>(exec: Exec, table: string): KeyedStateStore<T> {
   if (!TABLE_NAME.test(table)) throw new Error(`invalid table name: ${JSON.stringify(table)}`)
 
   let ready: Promise<unknown> | null = null
@@ -45,6 +50,15 @@ export function createPgStateStore<T>(exec: Exec, table: string): StateStore<T> 
         out[r.site_id as string] = state as T
       }
       return out
+    },
+
+    async upsert(key, value) {
+      await ensureTable()
+      await exec(
+        `INSERT INTO ${table} (site_id, state, updated_at) VALUES ($1, $2::jsonb, now())
+         ON CONFLICT (site_id) DO UPDATE SET state = EXCLUDED.state, updated_at = now()`,
+        [key, JSON.stringify(value)]
+      )
     },
 
     async save(state) {

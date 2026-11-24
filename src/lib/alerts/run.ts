@@ -85,8 +85,13 @@ export async function runAlertCheck(deps: AlertRunDeps): Promise<AlertRunResult>
     }
   }
 
-  await deps.store.save(toSave)
-  if (toSaveExpiry) await deps.expiryStore!.save(toSaveExpiry)
+  // Attempt both saves even if one fails: the emails already went out, and skipping the second save would
+  // make the next run send its warnings again. Then surface the first failure.
+  const saves = [deps.store.save(toSave)]
+  if (toSaveExpiry) saves.push(deps.expiryStore!.save(toSaveExpiry))
+  const settled = await Promise.allSettled(saves)
+  const failed = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected')
+  if (failed) throw failed.reason
 
   const detail = details.length > 0 ? details.join('; ') : 'no alerts'
   return { checked: triage.length, alerts: alerts.length, expiryAlerts: expiryAlertCount, delivered, detail }

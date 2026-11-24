@@ -49,6 +49,13 @@ describe('sendExpiryEmail', () => {
     expect(subjectOf(f)).toBe('SSL expires in 1 day: Phil')
   })
 
+  it('0 days (under a day left, not yet expired) says expires today', async () => {
+    const f = vi.fn().mockResolvedValue(okRes())
+    await sendExpiryEmail([expiring('ssl', 0)], cfg, f as any)
+    expect(subjectOf(f)).toBe('SSL expires today: Phil')
+    expect(JSON.parse(f.mock.calls[0][1].body).text).toMatch(/expires today/i)
+  })
+
   it('expired subjects', async () => {
     const f1 = vi.fn().mockResolvedValue(okRes())
     await sendExpiryEmail([expired('ssl')], cfg, f1 as any)

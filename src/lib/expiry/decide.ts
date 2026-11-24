@@ -9,11 +9,19 @@ export const EXPIRY_THRESHOLDS: Record<ExpiryKind, number[]> = {
   domain: [30, 14, 7, 3, 1],
 }
 
-export interface ExpiryAlertState {
-  /** Smallest threshold already emailed for the current expiry date (null = none yet). */
+interface ExpiryRecord {
+  /** Smallest threshold already emailed for this expiry date (null = none yet). */
   lastThreshold: number | null
   expiredAlerted: boolean
-  expiresAt: string
+}
+
+/**
+ * Alert memory per (site, kind), keyed by the expiry DATE (YYYY-MM-DD). A renewal is simply a new date with
+ * an empty record, and seeing an old date again (a CDN edge still serving the old cert) finds its record, so a
+ * warning is never repeated. Only the 3 most recent dates are kept.
+ */
+export interface ExpiryAlertState {
+  byExpiry: Record<string, ExpiryRecord>
 }
 
 export interface ExpiryAlert {
@@ -27,6 +35,8 @@ export interface ExpiryAlert {
   threshold?: number
 }
 
+const DAY_MS = 86_400_000
+const KEEP_DATES = 3
 const ASC: Record<ExpiryKind, number[]> = {
   ssl: [...EXPIRY_THRESHOLDS.ssl].sort((a, b) => a - b),
   domain: [...EXPIRY_THRESHOLDS.domain].sort((a, b) => a - b),
@@ -34,14 +44,16 @@ const ASC: Record<ExpiryKind, number[]> = {
 
 /**
  * Pure expiry alert decision. Emails once per threshold per expiry date (domain 30/14/7/3/1, SSL 14/7/3/1)
- * and once on expiry. A later expiry date (renewal) or being back above the top threshold re-arms everything.
+ * and once when the expiry time passes. Days are recomputed from the expiry date at `nowIso` (cached values can
+ * be hours stale), and "expired" means the expiry time has actually passed, not merely "under a day left".
  * Parts without data (nodata) never alert and keep their previous state.
  */
 export function decideExpiryAlerts(
   prev: Record<string, ExpiryAlertState>,
   rows: { id: string; name: string; url: string; expiry: SiteExpiry }[],
-  _nowIso: string
+  nowIso: string
 ): { alerts: ExpiryAlert[]; next: Record<string, ExpiryAlertState> } {
+  const nowMs = Date.parse(nowIso)
   const alerts: ExpiryAlert[] = []
   const next: Record<string, ExpiryAlertState> = {}
 
@@ -51,30 +63,33 @@ export function decideExpiryAlerts(
       const part: ExpiryPart = site.expiry[what]
       const before = prev[key]
 
-      if (part.status === 'nodata' || part.days === undefined || !part.expiresAt) {
+      const expiresMs = part.expiresAt ? Date.parse(part.expiresAt) : NaN
+      if (part.status === 'nodata' || !part.expiresAt || Number.isNaN(expiresMs)) {
         if (before) next[key] = before
         continue
       }
 
-      const { days, expiresAt } = part
+      const dateKey = part.expiresAt.slice(0, 10)
+      const record: ExpiryRecord = { ...(before?.byExpiry[dateKey] ?? { lastThreshold: null, expiredAlerted: false }) }
+      const days = Math.floor((expiresMs - nowMs) / DAY_MS)
       const asc = ASC[what]
-      const maxThreshold = asc[asc.length - 1]
-      const renewed = before ? Date.parse(expiresAt) > Date.parse(before.expiresAt) : false
-      const fresh: ExpiryAlertState = { lastThreshold: null, expiredAlerted: false, expiresAt }
-      let state: ExpiryAlertState = !before || renewed || days > maxThreshold ? fresh : { ...before, expiresAt }
+      const base = { what, siteId: site.id, name: site.name, url: site.url, days, expiresAt: part.expiresAt }
 
-      const base = { what, siteId: site.id, name: site.name, url: site.url, days, expiresAt }
-      if (days <= 0) {
-        if (!state.expiredAlerted) alerts.push({ type: 'expired', ...base })
-        state = { ...state, expiredAlerted: true, lastThreshold: asc[0] }
+      if (expiresMs <= nowMs) {
+        if (!record.expiredAlerted) alerts.push({ type: 'expired', ...base })
+        record.expiredAlerted = true
+        record.lastThreshold = asc[0]
       } else {
         const t = asc.find(th => days <= th)
-        if (t !== undefined && (state.lastThreshold === null || t < state.lastThreshold)) {
+        if (t !== undefined && (record.lastThreshold === null || t < record.lastThreshold)) {
           alerts.push({ type: 'expiring', ...base, threshold: t })
-          state = { ...state, lastThreshold: t }
+          record.lastThreshold = t
         }
       }
-      next[key] = state
+
+      const merged = { ...(before?.byExpiry ?? {}), [dateKey]: record }
+      const kept = Object.keys(merged).sort().slice(-KEEP_DATES)
+      next[key] = { byExpiry: Object.fromEntries(kept.map(k => [k, merged[k]])) }
     }
   }
 

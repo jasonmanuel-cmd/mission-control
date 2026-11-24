@@ -30,6 +30,14 @@ export function daysUntil(iso: string, nowMs: number): number {
   return Math.floor((Date.parse(iso) - nowMs) / DAY_MS)
 }
 
+/**
+ * Whole days left right now, recomputed from the expiry date (a cached part's `days` can be hours stale).
+ * Falls back to the stored `days` when there is no date. Negative once the expiry time has passed.
+ */
+export function currentDays(part: ExpiryPart, nowMs: number): number | undefined {
+  return part.expiresAt ? daysUntil(part.expiresAt, nowMs) : part.days
+}
+
 function partFromExpiry(kind: ExpiryKind, label: string, expiresAt: string, nowMs: number): ExpiryPart {
   const days = daysUntil(expiresAt, nowMs)
   const status = statusForDays(days, kind)

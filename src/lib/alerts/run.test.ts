@@ -119,7 +119,7 @@ describe('runAlertCheck', () => {
       expect(sendExpiry).toHaveBeenCalledTimes(1)
       expect(sendExpiry.mock.calls[0][0]).toHaveLength(1)
       expect(sendExpiry.mock.calls[0][0][0]).toMatchObject({ type: 'expiring', what: 'ssl', siteId: 'a', threshold: 7 })
-      expect(exp.get()['a:ssl']).toMatchObject({ lastThreshold: 7 })
+      expect(Object.values(exp.get()['a:ssl'].byExpiry)[0]).toMatchObject({ lastThreshold: 7 })
       expect(r).toMatchObject({ expiryAlerts: 1, delivered: true })
     })
 
@@ -148,7 +148,7 @@ describe('runAlertCheck', () => {
       const r = await runAlertCheck(d)
       expect(r.delivered).toBe(false)
       expect(status.get().a).toMatchObject({ alerted: false })
-      expect(exp.get()['a:ssl']).toMatchObject({ lastThreshold: 7 })
+      expect(Object.values(exp.get()['a:ssl'].byExpiry)[0]).toMatchObject({ lastThreshold: 7 })
     })
 
     it('a failed expiry send does not roll back a delivered status alert', async () => {
@@ -165,6 +165,15 @@ describe('runAlertCheck', () => {
       await expect(runAlertCheck(d)).rejects.toThrow('db down')
       expect(send).not.toHaveBeenCalled()
       expect(sendExpiry).not.toHaveBeenCalled()
+    })
+
+    it('a failing status save still saves the expiry state (so its emails are not re-sent)', async () => {
+      const status = memStore()
+      ;(status.store.save as any).mockRejectedValue(new Error('status db down'))
+      const { d, exp } = expiryDeps([site('a', false, 5)], status)
+      await expect(runAlertCheck(d)).rejects.toThrow('status db down')
+      expect(exp.store.save).toHaveBeenCalled()
+      expect(Object.keys(exp.get())).toContain('a:ssl')
     })
 
     it('without an expiry store nothing expiry-related runs', async () => {

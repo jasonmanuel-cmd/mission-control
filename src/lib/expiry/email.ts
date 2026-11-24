@@ -7,6 +7,7 @@ function subjectFor(alerts: ExpiryAlert[]): string {
   if (alerts.length > 1) return `${alerts.length} expiry warnings`
   const a = alerts[0]
   if (a.type === 'expired') return `${label(a)} EXPIRED: ${a.name}`
+  if (a.days <= 0) return `${label(a)} expires today: ${a.name}`
   return `${label(a)} expires in ${a.days} ${a.days === 1 ? 'day' : 'days'}: ${a.name}`
 }
 
@@ -14,7 +15,8 @@ function bodyFor(alerts: ExpiryAlert[]): string {
   return alerts
     .map(a => {
       const what = a.what === 'ssl' ? 'SSL certificate' : 'Domain registration'
-      const head = a.type === 'expired' ? `${what} EXPIRED: ${a.name}` : `${what} expires in ${a.days} ${a.days === 1 ? 'day' : 'days'}: ${a.name}`
+      const left = a.days <= 0 ? 'expires today' : `expires in ${a.days} ${a.days === 1 ? 'day' : 'days'}`
+      const head = a.type === 'expired' ? `${what} EXPIRED: ${a.name}` : `${what} ${left}: ${a.name}`
       const when = a.type === 'expired' ? `Expired on ${a.expiresAt}` : `Expires on ${a.expiresAt}`
       return [head, a.url, when].join('\n')
     })
