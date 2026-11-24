@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('@/lib/alerts/run', () => ({ runAlertCheck: vi.fn() }))
-vi.mock('@/lib/alerts/store', () => ({ createPgStore: vi.fn(() => ({})), neonExec: vi.fn(() => vi.fn()) }))
+vi.mock('@/lib/alerts/store', () => ({ createPgStore: vi.fn(() => ({})), createPgStateStore: vi.fn(() => ({})), neonExec: vi.fn(() => vi.fn()) }))
 
 import { runAlertCheck } from '@/lib/alerts/run'
 import { GET } from './route'
+import { createPgStateStore } from '@/lib/alerts/store'
 import { isAuthorized } from '@/lib/alerts/auth'
 
 const req = (auth?: string) => ({ headers: new Headers(auth ? { authorization: auth } : {}) }) as any
@@ -68,6 +69,15 @@ describe('GET /api/cron/alerts', () => {
     const res = await GET(req('Bearer s3cret'))
     expect(res.status).toBe(502)
     expect(await res.json()).toMatchObject({ delivered: false, detail: 'RESEND_API_KEY not set' })
+  })
+
+  it('wires the expiry store (table expiry_alert_state) and sender into the run', async () => {
+    ;(runAlertCheck as any).mockResolvedValue({ checked: 1, alerts: 0, expiryAlerts: 0, delivered: true, detail: 'no alerts' })
+    await GET(req('Bearer s3cret'))
+    expect(createPgStateStore).toHaveBeenCalledWith(expect.anything(), 'expiry_alert_state')
+    const deps = (runAlertCheck as any).mock.calls[0][0]
+    expect(typeof deps.sendExpiry).toBe('function')
+    expect(deps.expiryStore).toBeDefined()
   })
 
   it('exports a maxDuration so slow checks are not cut off', async () => {
