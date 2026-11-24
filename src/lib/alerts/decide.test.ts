@@ -14,7 +14,7 @@ function row(id: string, over: Partial<Record<'uptime' | 'live' | 'deploy', Part
   const deploy = part(over.deploy, 'deployed')
   const parts = [uptime.status, live.status, deploy.status]
   const computed: PartStatus = worstStatus(parts)
-  return { id, name: `Site ${id}`, url: `https://${id}.com`, uptime, live, deploy, overall: overall ?? computed, checkedAt: T0 }
+  return { id, name: `Site ${id}`, url: `https://${id}.com`, uptime, live, deploy, overall: overall ?? computed, expiry: { ssl: { status: 'ok', detail: 'ssl', days: 90 }, domain: { status: 'ok', detail: 'domain', days: 300 }, checkedAt: T0 }, checkedAt: T0 }
 }
 const failing = (id: string) => row(id, { live: 'fail' })
 

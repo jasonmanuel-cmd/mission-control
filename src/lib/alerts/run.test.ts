@@ -11,6 +11,7 @@ const site = (id: string, fail = false): SiteTriage => ({
   live: { status: fail ? 'fail' : 'ok', detail: fail ? 'HTTP 503' : 'HTTP 200' },
   deploy: { status: 'ok', detail: 'deployed' },
   overall: fail ? 'fail' : 'ok', checkedAt: NOW,
+  expiry: { ssl: { status: 'ok', detail: 'ssl', days: 90 }, domain: { status: 'ok', detail: 'domain', days: 300 }, checkedAt: NOW },
 })
 const cfgSites = (...ids: string[]) => ids.map(id => ({ id, name: id, url: `https://${id}.com` }))
 

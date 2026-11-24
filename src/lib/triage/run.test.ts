@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { runTriage, type TriageDeps } from './run'
+import type { SiteExpiry } from '@/lib/expiry/cache'
 
 const sites = [
   { id: 'a', name: 'A', url: 'https://a.com', vercelProject: 'pa' },
@@ -8,8 +9,15 @@ const sites = [
 ]
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms))
 
+const okExpiry = (): SiteExpiry => ({
+  ssl: { status: 'ok', detail: 'ssl', days: 90 },
+  domain: { status: 'ok', detail: 'domain', days: 300 },
+  checkedAt: '2026-11-24T00:00:00.000Z',
+})
+
 function deps(over: Partial<TriageDeps> = {}): TriageDeps {
   return {
+    getExpiry: vi.fn().mockResolvedValue(okExpiry()),
     loadMonitorIndex: vi.fn().mockResolvedValue({ monitors: [] }),
     uptimeForSite: vi.fn().mockReturnValue({ status: 'ok', detail: 'up' }),
     checkLive: vi.fn().mockResolvedValue({ status: 'ok', detail: 'fine' }),
@@ -93,5 +101,35 @@ describe('runTriage', () => {
     })
     const [r] = await runTriage(sites, d)
     expect(r.overall).toBe('nodata')
+  })
+
+  it('attaches expiry to every row', async () => {
+    const res = await runTriage(sites, deps())
+    expect(res.every(r => r.expiry.ssl.days === 90 && r.expiry.domain.days === 300)).toBe(true)
+  })
+
+  it('a failing expiry part never changes overall (healthy site stays ok)', async () => {
+    const expiring: SiteExpiry = { ...okExpiry(), ssl: { status: 'fail', detail: 'certificate expires in 2 day(s)', days: 2 } }
+    const res = await runTriage(sites, deps({ getExpiry: vi.fn().mockResolvedValue(expiring) }))
+    expect(res.every(r => r.overall === 'ok')).toBe(true)
+    expect(res[0].expiry.ssl.status).toBe('fail')
+  })
+
+  it('getExpiry throwing yields nodata parts and does not reject the run', async () => {
+    const res = await runTriage(sites, deps({ getExpiry: vi.fn().mockRejectedValue(new Error('boom')) }))
+    expect(res).toHaveLength(3)
+    expect(res[0].expiry.ssl).toEqual({ status: 'nodata', detail: 'boom' })
+    expect(res[0].expiry.domain).toEqual({ status: 'nodata', detail: 'boom' })
+  })
+
+  it('runs expiry concurrently with the other checks', async () => {
+    const slow = (ms: number) => new Promise(r => setTimeout(r, ms))
+    const d = deps({
+      checkLive: vi.fn().mockImplementation(async () => { await slow(80); return { status: 'ok', detail: '' } }),
+      getExpiry: vi.fn().mockImplementation(async () => { await slow(80); return okExpiry() }),
+    })
+    const t0 = Date.now()
+    await runTriage(sites.slice(0, 1), d)
+    expect(Date.now() - t0).toBeLessThan(140)
   })
 })
