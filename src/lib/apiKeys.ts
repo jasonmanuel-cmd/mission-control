@@ -1,7 +1,6 @@
 export interface ApiKeySet {
   pagespeed: string
   betterstack: string
-  netlify: string
   github: string
 }
 
@@ -10,7 +9,6 @@ const STORAGE_KEY = 'commandCenterApiKeys'
 const defaultKeys: ApiKeySet = {
   pagespeed: '',
   betterstack: '',
-  netlify: '',
   github: '',
 }
 
@@ -18,7 +16,15 @@ export function getApiKeys(): ApiKeySet {
   if (typeof window === 'undefined') return defaultKeys
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) return { ...defaultKeys, ...JSON.parse(saved) }
+    if (saved) {
+      // Only known keys: anything else left in browser storage from older versions is ignored.
+      const parsed = JSON.parse(saved) as Partial<ApiKeySet>
+      return {
+        pagespeed: parsed.pagespeed ?? '',
+        betterstack: parsed.betterstack ?? '',
+        github: parsed.github ?? '',
+      }
+    }
   } catch {}
   return defaultKeys
 }

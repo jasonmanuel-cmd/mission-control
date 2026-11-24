@@ -8,7 +8,6 @@ export interface SiteConfig {
   name: string
   url: string
   githubRepo?: string
-  netlifyId?: string
   vercelProject?: string
   betterStackId?: string
 }

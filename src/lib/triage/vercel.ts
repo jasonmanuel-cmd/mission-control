@@ -11,7 +11,14 @@ export async function checkVercelDeploy(
   if (!project) return { status: 'nodata', detail: 'no vercelProject configured', unconfigured: true }
   if (!env.token) return { status: 'nodata', detail: 'VERCEL_TOKEN not set', unconfigured: true }
 
-  const params = new URLSearchParams({ projectId: project, limit: '1' })
+  // Production only: a failed preview build on a PR branch says nothing about whether the live site is up.
+  // CANCELED is left out of the states so a canceled build never masks (or fakes) what is actually live.
+  const params = new URLSearchParams({
+    projectId: project,
+    limit: '1',
+    target: 'production',
+    state: 'BUILDING,ERROR,INITIALIZING,QUEUED,READY',
+  })
   if (env.teamId) params.set('teamId', env.teamId)
 
   const controller = new AbortController()
@@ -46,4 +53,11 @@ export async function checkVercelDeploy(
   } finally {
     clearTimeout(timer)
   }
+}
+
+/** Shape the overview cards use: Vercel's ready/failed/in-progress, with the deploy time as ISO. */
+export function toLegacyDeployStatus(part: DeployResult): { status: 'success' | 'failed' | 'building'; time: string } | undefined {
+  if (part.status === 'nodata') return undefined
+  const status = part.status === 'ok' ? 'success' : part.status === 'fail' ? 'failed' : 'building'
+  return { status, time: part.createdAt ? new Date(part.createdAt).toISOString() : '' }
 }

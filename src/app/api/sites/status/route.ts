@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { toSiteUrl } from '@/lib/url'
 import { readSites } from '@/lib/sites'
+import { checkVercelDeploy, toLegacyDeployStatus } from '@/lib/triage/vercel'
 
 export const dynamic = 'force-dynamic'
+// HEAD checks (10s each) + Better Stack + Vercel lookups can exceed a 10s default on hosts that honour this.
+export const maxDuration = 30
 
 interface SiteStatus {
   id: string
   name: string
   url: string
   githubRepo?: string
-  netlifyId?: string
+  vercelProject?: string
   status: 'online' | 'offline' | 'degraded' | 'loading'
   /** null = no real data (Better Stack not configured / no monitor); never an invented number */
   uptime: number | null
@@ -116,68 +119,38 @@ async function fetchBetterStackData(betterStackKey?: string): Promise<Map<string
   return dataMap
 }
 
-// Fetch Netlify deploy status
-async function fetchNetlifyStatus(siteId: string, netlifyToken?: string): Promise<{ status: 'success' | 'failed' | 'building'; time: string } | null> {
-  const apiKey = netlifyToken || process.env.NETLIFY_API_TOKEN
-
-  if (!apiKey) {
-    return null
-  }
-
-  try {
-    const response = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}/deploys?per_page=1`, {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      next: { revalidate: 60 }
-    })
-
-    if (!response.ok) {
-      return null
-    }
-
-    const deploys = await response.json()
-    if (deploys.length > 0) {
-      const latestDeploy = deploys[0]
-      return {
-        status: latestDeploy.state === 'ready' ? 'success' :
-                latestDeploy.state === 'building' ? 'building' : 'failed',
-        time: latestDeploy.created_at
-      }
-    }
-  } catch (error) {
-    console.error('Netlify API error:', error)
-  }
-
-  return null
-}
-
 // Main API handler
 export async function GET(request: NextRequest) {
   try {
     const allSites = await readSites()
 
     const betterStackKey = request.headers.get('x-api-key-betterstack') || undefined
-    const netlifyKey = request.headers.get('x-api-key-netlify') || undefined
+    // Vercel token stays server-side (env only); never read from a browser header.
+    const vercelEnv = { token: process.env.VERCEL_TOKEN, teamId: process.env.VERCEL_TEAM_ID }
 
 
-    // Fetch Better Stack data in parallel with site checks
+    // Latest Vercel deploy per site (only for sites that have a vercelProject). Started now so it runs
+    // alongside the HEAD checks and Better Stack instead of after them.
+    const deployPromises = allSites.map(async site => {
+      if (!site.vercelProject) return undefined
+      try {
+        return toLegacyDeployStatus(await checkVercelDeploy(site.vercelProject, vercelEnv))
+      } catch {
+        return undefined
+      }
+    })
+
     const [betterStackData, ...siteChecks] = await Promise.all([
       fetchBetterStackData(betterStackKey),
       ...allSites.map(site => checkSiteStatus(site.url))
     ])
-
-    // Fetch Netlify deploy status for all sites
-    const netlifyStatuses = await Promise.all(
-      allSites.map(site => site.netlifyId ? fetchNetlifyStatus(site.netlifyId, netlifyKey) : Promise.resolve(null))
-    )
+    const deployStatuses = await Promise.all(deployPromises)
 
     // Build response
     const sites: SiteStatus[] = allSites.map((site, index) => {
       const siteCheck = siteChecks[index]
       const betterStackInfo = betterStackData.get(site.url.replace(/^https?:\/\//, '').replace(/\/$/, ''))
-      const netlifyStatus = netlifyStatuses[index]
+      const deployStatus = deployStatuses[index]
 
       // Determine status
       let status: SiteStatus['status'] = 'loading'
@@ -204,13 +177,13 @@ export async function GET(request: NextRequest) {
         name: site.name,
         url: site.url,
         githubRepo: site.githubRepo,
-        netlifyId: site.netlifyId,
+        vercelProject: site.vercelProject,
         status,
         uptime: uptime === null ? null : Math.round(uptime * 10) / 10,
         responseTime: Math.round(responseTime),
         performance,
-        lastDeployStatus: netlifyStatus?.status,
-        lastDeployTime: netlifyStatus?.time,
+        lastDeployStatus: deployStatus?.status,
+        lastDeployTime: deployStatus?.time || undefined,
         securityIssues: null,
         lastChecked: new Date().toISOString()
       }
