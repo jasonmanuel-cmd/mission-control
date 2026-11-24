@@ -18,12 +18,6 @@ const KEY_DEFS: { key: keyof ApiKeySet; label: string; placeholder: string; link
     link: 'https://betterstack.com/docs/uptime/api/',
   },
   {
-    key: 'netlify',
-    label: 'Netlify Personal Access Token',
-    placeholder: 'nfp_...',
-    link: 'https://app.netlify.com/user/applications/personal',
-  },
-  {
     key: 'github',
     label: 'GitHub Personal Access Token',
     placeholder: 'ghp_...',

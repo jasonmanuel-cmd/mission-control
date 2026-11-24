@@ -25,7 +25,7 @@ export interface SiteStatus {
   name: string
   url: string
   githubRepo?: string
-  netlifyId?: string
+  vercelProject?: string
   status: 'online' | 'offline' | 'degraded' | 'loading'
   uptime: number | null
   responseTime: number
@@ -295,7 +295,7 @@ export default function AllSitesOverview({ onSiteClick }: AllSitesOverviewProps)
                 {/* Last Checked */}
                 <div className="flex items-center gap-1 text-xs text-gray-500">
                   <Server className="w-3 h-3" />
-                  <span>Netlify</span>
+                  <span>Vercel</span>
                 </div>
               </div>
             </div>

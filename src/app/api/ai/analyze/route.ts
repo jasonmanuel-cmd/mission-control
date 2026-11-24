@@ -54,7 +54,7 @@ async function analyzeWithAI(url: string): Promise<Issue[]> {
         instructions: 'Check your hosting provider, DNS settings, and ensure your server is running.',
         estimatedTime: '15-30 min'
       },
-      aiSuggestion: 'I recommend checking your Netlify deployment logs and DNS configuration. Verify that your domain is properly pointed to Netlify\'s servers.'
+      aiSuggestion: 'I recommend checking your Vercel deployment logs and DNS configuration. Verify that your domain is added to the Vercel project and its DNS records point at Vercel.'
     })
     return issues
   }
@@ -73,7 +73,7 @@ async function analyzeWithAI(url: string): Promise<Issue[]> {
         instructions: 'Enable server-side caching, use a CDN, optimize database queries, and consider upgrading your hosting plan.',
         estimatedTime: '2-4 hours'
       },
-      aiSuggestion: 'Based on your Netlify setup, I recommend enabling Edge Functions for dynamic content and ensuring static assets are properly cached. Check if any serverless functions are causing delays.'
+      aiSuggestion: 'Based on your Vercel setup, I recommend using Edge caching headers for dynamic content and ensuring static assets are properly cached. Check if any serverless functions are causing delays.'
     })
   }
 
@@ -137,13 +137,19 @@ async function analyzeWithAI(url: string): Promise<Issue[]> {
       impact: 'Without CSP, your site is more vulnerable to XSS attacks and data injection.',
       fix: {
         type: 'code',
-        instructions: 'Add a Content-Security-Policy header to your server configuration or Netlify headers.',
-        codeSnippet: `# netlify.toml
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"`,
-        filePath: 'netlify.toml',
+        instructions: 'Add a Content-Security-Policy header in vercel.json (or the headers config of your framework).',
+        codeSnippet: `// vercel.json
+{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'" }
+      ]
+    }
+  ]
+}`,
+        filePath: 'vercel.json',
         estimatedTime: '20 min'
       },
       aiSuggestion: 'Start with a basic CSP policy and gradually tighten it. Monitor for violations using the report-uri directive before enforcing.'
@@ -161,15 +167,21 @@ async function analyzeWithAI(url: string): Promise<Issue[]> {
       fix: {
         type: 'code',
         instructions: 'Add HSTS header to enforce HTTPS connections.',
-        codeSnippet: `# netlify.toml
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"`,
-        filePath: 'netlify.toml',
+        codeSnippet: `// vercel.json
+{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains; preload" }
+      ]
+    }
+  ]
+}`,
+        filePath: 'vercel.json',
         estimatedTime: '10 min'
       },
-      aiSuggestion: 'Since your site is on Netlify with HTTPS, adding HSTS is a quick security win. Consider submitting to the HSTS preload list for maximum protection.'
+      aiSuggestion: 'Since your site is on Vercel with HTTPS, adding HSTS is a quick security win. Consider submitting to the HSTS preload list for maximum protection.'
     })
   }
 
@@ -184,8 +196,9 @@ async function analyzeWithAI(url: string): Promise<Issue[]> {
       fix: {
         type: 'code',
         instructions: 'Add X-Frame-Options header to prevent clickjacking.',
-        codeSnippet: `X-Frame-Options: DENY`,
-        filePath: 'netlify.toml',
+        codeSnippet: `// vercel.json headers entry
+{ "key": "X-Frame-Options", "value": "DENY" }`,
+        filePath: 'vercel.json',
         estimatedTime: '5 min'
       }
     })

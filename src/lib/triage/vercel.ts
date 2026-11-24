@@ -47,3 +47,10 @@ export async function checkVercelDeploy(
     clearTimeout(timer)
   }
 }
+
+/** Shape the overview cards use: Vercel's ready/failed/in-progress, with the deploy time as ISO. */
+export function toLegacyDeployStatus(part: DeployResult): { status: 'success' | 'failed' | 'building'; time: string } | undefined {
+  if (part.status === 'nodata') return undefined
+  const status = part.status === 'ok' ? 'success' : part.status === 'fail' ? 'failed' : 'building'
+  return { status, time: part.createdAt ? new Date(part.createdAt).toISOString() : '' }
+}

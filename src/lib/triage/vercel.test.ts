@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { checkVercelDeploy } from './vercel'
+import { checkVercelDeploy, toLegacyDeployStatus } from './vercel'
 
 const dep = (state: string, extra: any = {}) => ({
   deployments: [{ state, created: 1700000000000, meta: { githubCommitSha: 'abc1234', githubCommitMessage: 'fix nav' }, ...extra }],
@@ -79,5 +79,22 @@ describe('checkVercelDeploy', () => {
     const r = await checkVercelDeploy('p', env, hang as any, 20)
     expect(r.status).toBe('nodata')
     expect(r.detail).toMatch(/timeout/i)
+  })
+})
+
+describe('toLegacyDeployStatus', () => {
+  it('maps a ready deploy to success with an ISO time', () => {
+    const createdAt = Date.parse('2026-11-24T00:00:00Z')
+    expect(toLegacyDeployStatus({ status: 'ok', detail: 'x', createdAt })).toEqual({ status: 'success', time: '2026-11-24T00:00:00.000Z' })
+  })
+  it('maps fail to failed and warn to building', () => {
+    expect(toLegacyDeployStatus({ status: 'fail', detail: 'x', createdAt: 1 })?.status).toBe('failed')
+    expect(toLegacyDeployStatus({ status: 'warn', detail: 'x', createdAt: 1 })?.status).toBe('building')
+  })
+  it('returns undefined when there is no deploy data', () => {
+    expect(toLegacyDeployStatus({ status: 'nodata', detail: 'no vercelProject configured' })).toBeUndefined()
+  })
+  it('ok without a timestamp still maps, with an empty time', () => {
+    expect(toLegacyDeployStatus({ status: 'ok', detail: 'x' })).toEqual({ status: 'success', time: '' })
   })
 })
