@@ -14,6 +14,7 @@ import {
   Layers
 } from 'lucide-react'
 import AllSitesOverview from '@/components/AllSitesOverview'
+import TriageBoard from '@/components/TriageBoard'
 import NotificationBell from '@/components/NotificationBell'
 import ApiKeyManager from '@/components/ApiKeyManager'
 import { SiteConfig } from '@/lib/siteConfig'
@@ -84,7 +85,10 @@ export default function Dashboard() {
       <p className="text-sm font-mono">{sitesError}</p>
     </div>
   ) : viewMode === 'overview' ? (
-    <AllSitesOverview onSiteClick={handleSiteClick} userSites={sites} />
+    <>
+      <TriageBoard onSiteClick={handleSiteClick} />
+      <AllSitesOverview onSiteClick={handleSiteClick} userSites={sites} />
+    </>
   ) : selectedSite ? (
     <div>
       {/* Back Button & Site Title */}
