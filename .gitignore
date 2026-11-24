@@ -39,3 +39,4 @@ lighthouse-post*
 
 .vercel
 .env*.local
+.superpowers/
