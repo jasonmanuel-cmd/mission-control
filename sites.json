@@ -14,19 +14,6 @@
     "githubRepo": "jasonmanuel-cmd/phillycheesesteak"
   },
   {
-    "id": "site-edwin-ward",
-    "name": "Edwin Ward Consulting",
-    "url": "https://edwinwardconsulting.com",
-    "vercelProject": "edwin",
-    "githubRepo": "jasonmanuel-cmd/edwin"
-  },
-  {
-    "id": "site-dffb-senior",
-    "name": "DFFB Senior Living",
-    "url": "https://dffbseniorliving.com",
-    "githubRepo": "blunts954-png/dffb"
-  },
-  {
     "id": "site-coai-builds",
     "name": "COAI Builds",
     "url": "https://coaibuilds.com",
@@ -60,5 +47,26 @@
     "url": "https://homegrowmoney.com",
     "vercelProject": "greenhome-6cx9",
     "githubRepo": "jasonmanuel-cmd/greenhome"
+  },
+  {
+    "id": "site-callharbison",
+    "name": "Call Harbison",
+    "url": "https://callharbison.com",
+    "vercelProject": "hbh",
+    "githubRepo": "jasonmanuel-cmd/HBH"
+  },
+  {
+    "id": "site-aspen2homes",
+    "name": "Aspen 2 Homes",
+    "url": "https://aspen2homes.com",
+    "vercelProject": "aspen2-astro-preview",
+    "githubRepo": "jasonmanuel-cmd/apen2website"
+  },
+  {
+    "id": "site-mgsusa",
+    "name": "MGS USA LLC",
+    "url": "https://mgsusa.llc",
+    "vercelProject": "mgsusa-llc",
+    "githubRepo": "jasonmanuel-cmd/mgsusa.llc"
   }
 ]

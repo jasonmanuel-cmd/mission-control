@@ -98,4 +98,59 @@ describe('getExpiry', () => {
     const r = await getExpiry(site, deps())
     expect(r.checkedAt).toBe(new Date(NOW).toISOString())
   })
+
+  describe('retrying a part that came back nodata (e.g. a registry rate limit)', () => {
+    const MIN = 60_000
+    const ago = (ms: number) => new Date(NOW - ms).toISOString()
+    const cached = (over: Partial<SiteExpiry>): SiteExpiry => ({ ssl: okPart(50), domain: okPart(200), checkedAt: ago(MIN), ...over })
+
+    it('re-checks only the nodata part once 15 minutes have passed, keeping the good one', async () => {
+      const cache = memCache(cached({ domain: nodata('RDAP lookup returned 429'), checkedAt: ago(60 * MIN) }))
+      const d = deps({ cache })
+      const r = await getExpiry(site, d)
+      expect(d.checkDomain).toHaveBeenCalledTimes(1)
+      expect(d.checkSSL).not.toHaveBeenCalled()
+      expect(r.domain.status).toBe('ok')
+      expect(r.ssl.days).toBe(50)
+      expect(cache.set).toHaveBeenCalledWith('a', expect.objectContaining({ domain: expect.objectContaining({ status: 'ok' }) }))
+    })
+
+    it('re-checks a nodata ssl part on its own', async () => {
+      const d = deps({ cache: memCache(cached({ ssl: nodata('SSL check failed: timeout'), checkedAt: ago(60 * MIN) })) })
+      const r = await getExpiry(site, d)
+      expect(d.checkSSL).toHaveBeenCalledTimes(1)
+      expect(d.checkDomain).not.toHaveBeenCalled()
+      expect(r.ssl.status).toBe('ok')
+    })
+
+    it('does not hammer: a nodata part checked 5 minutes ago is left alone', async () => {
+      const d = deps({ cache: memCache(cached({ domain: nodata(), checkedAt: ago(5 * MIN) })) })
+      await getExpiry(site, d)
+      expect(d.checkDomain).not.toHaveBeenCalled()
+    })
+
+    it('a failed retry is remembered, so the next 15 minutes stay quiet', async () => {
+      const cache = memCache(cached({ domain: nodata('RDAP lookup returned 429'), checkedAt: ago(60 * MIN) }))
+      const stillFailing = deps({ cache, checkDomain: vi.fn().mockResolvedValue(nodata('RDAP lookup returned 429')) })
+      const first = await getExpiry(site, stillFailing)
+      expect(first.domain.status).toBe('nodata')
+      expect(first.retriedAt).toBe(new Date(NOW).toISOString())
+      const next = deps({ cache, now: () => NOW + 5 * MIN })
+      await getExpiry(site, next)
+      expect(next.checkDomain).not.toHaveBeenCalled()
+    })
+
+    it('a retry attempt does not extend the life of the good part (still a full refresh at 12h)', async () => {
+      const cache = memCache(cached({ domain: nodata(), checkedAt: ago(60 * MIN) }))
+      const r = await getExpiry(site, deps({ cache }))
+      expect(r.checkedAt).toBe(ago(60 * MIN))
+    })
+
+    it('all parts ok and fresh: nothing is looked up', async () => {
+      const d = deps({ cache: memCache(cached({ checkedAt: ago(60 * MIN) })) })
+      await getExpiry(site, d)
+      expect(d.checkSSL).not.toHaveBeenCalled()
+      expect(d.checkDomain).not.toHaveBeenCalled()
+    })
+  })
 })

@@ -4,6 +4,8 @@ import type { ExpiryCache, SiteExpiry } from './cache'
 
 export const EXPIRY_TTL_MS = 12 * 60 * 60 * 1000
 const SSL_TIMEOUT_MS = 6000
+/** A cached nodata part (timeout, registry rate limit) is re-tried on its own after this long, then again at the same spacing. */
+const NODATA_RETRY_MS = 15 * 60 * 1000
 
 export interface ExpiryDeps {
   checkSSL: (host: string) => Promise<SSLInfo>
@@ -37,21 +39,38 @@ async function safe(fn: () => Promise<ExpiryPart>): Promise<ExpiryPart> {
 export async function getExpiry(site: { id: string; url: string }, overrides: Partial<ExpiryDeps> = {}): Promise<SiteExpiry> {
   const deps = { ...defaults(), ...overrides }
   const nowMs = deps.now()
+  const host = hostOf(site.url)
+  const lookupSsl = () => safe(async () => sslPart(await deps.checkSSL(host), nowMs))
+  const lookupDomain = () => safe(() => deps.checkDomain(host))
 
   if (deps.cache) {
+    let hit: SiteExpiry | null = null
     try {
-      const hit = await deps.cache.get(site.id, EXPIRY_TTL_MS, nowMs)
-      if (hit) return hit
+      hit = await deps.cache.get(site.id, EXPIRY_TTL_MS, nowMs)
     } catch {
       /* fall through to a live lookup */
     }
+    if (hit) {
+      const sslBad = hit.ssl.status === 'nodata'
+      const domainBad = hit.domain.status === 'nodata'
+      const lastTry = Date.parse(hit.retriedAt ?? hit.checkedAt)
+      const due = !Number.isFinite(lastTry) || nowMs - lastTry >= NODATA_RETRY_MS
+      if (!(due && (sslBad || domainBad))) return hit
+
+      // Re-check only what failed. Keep the good part and the original checkedAt, so a retry never
+      // extends the life of the good data (it still gets its full refresh at 12h).
+      const [ssl, domain] = await Promise.all([sslBad ? lookupSsl() : hit.ssl, domainBad ? lookupDomain() : hit.domain])
+      const merged: SiteExpiry = { ssl, domain, checkedAt: hit.checkedAt, retriedAt: new Date(nowMs).toISOString() }
+      try {
+        await deps.cache.set(site.id, merged)
+      } catch {
+        /* best effort */
+      }
+      return merged
+    }
   }
 
-  const host = hostOf(site.url)
-  const [ssl, domain] = await Promise.all([
-    safe(async () => sslPart(await deps.checkSSL(host), nowMs)),
-    safe(() => deps.checkDomain(host)),
-  ])
+  const [ssl, domain] = await Promise.all([lookupSsl(), lookupDomain()])
   const result: SiteExpiry = { ssl, domain, checkedAt: new Date(nowMs).toISOString() }
 
   if (deps.cache && !(ssl.status === 'nodata' && domain.status === 'nodata')) {
