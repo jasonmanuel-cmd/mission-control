@@ -32,14 +32,14 @@ function bodyFor(alerts: Alert[]): string {
     .join('\n\n')
 }
 
-/** One email per run, batching every alert. Never throws: failures come back as { ok: false }. */
-export async function sendAlertEmail(
-  alerts: Alert[],
+/** Shared Resend sender: checks config, POSTs, enforces a timeout. Never throws. */
+export async function postEmail(
+  subject: string,
+  text: string,
   cfg: EmailConfig,
   fetchImpl: typeof fetch = fetch,
   timeoutMs = 8000
 ): Promise<SendResult> {
-  if (alerts.length === 0) return { ok: true, detail: 'no alerts to send' }
   if (!cfg.apiKey) return { ok: false, detail: 'RESEND_API_KEY not set' }
   if (!cfg.from) return { ok: false, detail: 'ALERT_EMAIL_FROM not set' }
   if (!cfg.to) return { ok: false, detail: 'ALERT_EMAIL_TO not set' }
@@ -50,15 +50,27 @@ export async function sendAlertEmail(
     const res = await fetchImpl('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${cfg.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: cfg.from, to: [cfg.to], subject: subjectFor(alerts), text: bodyFor(alerts) }),
+      body: JSON.stringify({ from: cfg.from, to: [cfg.to], subject, text }),
       signal: controller.signal,
     })
     if (!res.ok) return { ok: false, detail: `Resend returned ${res.status}` }
-    return { ok: true, detail: `sent ${alerts.length} alert(s)` }
+    return { ok: true, detail: 'sent' }
   } catch (err: any) {
     const timedOut = err?.name === 'AbortError'
     return { ok: false, detail: timedOut ? `Resend timeout after ${timeoutMs} ms` : String(err?.message ?? err) }
   } finally {
     clearTimeout(timer)
   }
+}
+
+/** One email per run, batching every alert. Never throws: failures come back as { ok: false }. */
+export async function sendAlertEmail(
+  alerts: Alert[],
+  cfg: EmailConfig,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs = 8000
+): Promise<SendResult> {
+  if (alerts.length === 0) return { ok: true, detail: 'no alerts to send' }
+  const result = await postEmail(subjectFor(alerts), bodyFor(alerts), cfg, fetchImpl, timeoutMs)
+  return result.ok ? { ok: true, detail: `sent ${alerts.length} alert(s)` } : result
 }
