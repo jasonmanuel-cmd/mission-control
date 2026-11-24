@@ -43,6 +43,12 @@ async function safe(fn: () => Promise<TriagePart> | TriagePart): Promise<TriageP
   }
 }
 
+/** Worst status of the parts that are set up. Unconfigured parts don't count; if none are set up, nodata. */
+function overallOf(parts: TriagePart[]): PartStatus {
+  const active = parts.filter(p => !p.unconfigured)
+  return active.length === 0 ? 'nodata' : worstStatus(active.map(p => p.status))
+}
+
 export async function runTriage(sites: SiteConfig[], deps: TriageDeps = defaultDeps()): Promise<SiteTriage[]> {
   const index = await deps.loadMonitorIndex(deps.env.betterStackKey)
   const vercelEnv = { token: deps.env.vercelToken, teamId: deps.env.vercelTeamId }
@@ -61,7 +67,7 @@ export async function runTriage(sites: SiteConfig[], deps: TriageDeps = defaultD
         uptime,
         live,
         deploy,
-        overall: worstStatus([uptime.status, live.status, deploy.status]),
+        overall: overallOf([uptime, live, deploy]),
         checkedAt: new Date().toISOString(),
       }
     })

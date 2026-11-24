@@ -1,62 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { toSiteUrl } from '@/lib/url'
+import { readSites } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
-
-// Your 9 sites configuration
-const SITES_CONFIG = [
-  {
-    id: 'site-coai-bakersfield',
-    name: 'COAI Bakersfield',
-    url: 'coaibakersfield.com'
-  },
-  {
-    id: 'site-phils-cheesesteaks',
-    name: "Phil's Cheesesteaks & More",
-    url: 'phils-cheesesteaks-and-more.com',
-    githubRepo: 'blunts954-png/phillycheesesteak',
-    netlifyId: '5a51b258-ff08-4aea-9dbc-d0dfea340c0e'
-  },
-  {
-    id: 'site-edwin-ward',
-    name: 'Edwin Ward Consulting',
-    url: 'edwinwardconsulting.com',
-    githubRepo: 'blunts954-png/edwin',
-    netlifyId: 'eebbde7c-0d52-4a08-86c4-8fbcdeabd101'
-  },
-  {
-    id: 'site-dffb-senior',
-    name: 'DFFB Senior Living',
-    url: 'dffbseniorliving.com',
-    githubRepo: 'blunts954-png/dffb',
-    netlifyId: '41483bef-df11-4fe8-b9f9-446f570b5986'
-  },
-  {
-    id: 'site-coai-builds',
-    name: 'COAI Builds',
-    url: 'coaibuilds.com'
-  },
-  {
-    id: 'site-tandmbak',
-    name: 'T&M Bakery',
-    url: 'tandmbak.com'
-  },
-  {
-    id: 'site-william-dean',
-    name: 'William Dean Real Photography',
-    url: 'williamdeanrealphotography.com'
-  },
-  {
-    id: 'site-poison-well',
-    name: 'Poison Well Records',
-    url: 'poisonwellrecords.com'
-  },
-  {
-    id: 'site-homegrow-money',
-    name: 'HomeGrow Money',
-    url: 'homegrowmoney.com'
-  }
-]
 
 interface SiteStatus {
   id: string
@@ -65,12 +11,14 @@ interface SiteStatus {
   githubRepo?: string
   netlifyId?: string
   status: 'online' | 'offline' | 'degraded' | 'loading'
-  uptime: number
+  /** null = no real data (Better Stack not configured / no monitor); never an invented number */
+  uptime: number | null
   responseTime: number
   performance: number
   lastDeployStatus?: 'success' | 'failed' | 'building'
   lastDeployTime?: string
-  securityIssues: number
+  /** null = not scanned here */
+  securityIssues: number | null
   lastChecked: string
 }
 
@@ -106,9 +54,9 @@ async function checkSiteStatus(url: string): Promise<{ online: boolean; response
 }
 
 // Fetch Better Stack uptime data
-async function fetchBetterStackData(betterStackKey?: string): Promise<Map<string, { uptime: number; responseTime: number }>> {
+async function fetchBetterStackData(betterStackKey?: string): Promise<Map<string, { uptime: number | null; responseTime: number }>> {
   const apiKey = betterStackKey || process.env.BETTER_STACK_UPTIME_API_KEY
-  const dataMap = new Map<string, { uptime: number; responseTime: number }>()
+  const dataMap = new Map<string, { uptime: number | null; responseTime: number }>()
 
   if (!apiKey) {
     return dataMap
@@ -152,12 +100,12 @@ async function fetchBetterStackData(betterStackKey?: string): Promise<Map<string
           if (slaResponse.ok) {
             const slaData = await slaResponse.json()
             dataMap.set(url, {
-              uptime: slaData.data?.attributes?.availability || 100,
+              uptime: slaData.data?.attributes?.availability ?? null,
               responseTime: slaData.data?.attributes?.average_response_time || 0
             })
           }
         } catch (e) {
-          dataMap.set(url, { uptime: 100, responseTime: 0 })
+          dataMap.set(url, { uptime: null, responseTime: 0 })
         }
       }
     }
@@ -208,16 +156,11 @@ async function fetchNetlifyStatus(siteId: string, netlifyToken?: string): Promis
 // Main API handler
 export async function GET(request: NextRequest) {
   try {
-    const userSitesParam = request.nextUrl.searchParams.get('sites')
-    let userSites: { id: string; name: string; url: string; githubRepo?: string; netlifyId?: string }[] = []
-    if (userSitesParam) {
-      try { userSites = JSON.parse(decodeURIComponent(userSitesParam)) } catch {}
-    }
+    const allSites = await readSites()
 
     const betterStackKey = request.headers.get('x-api-key-betterstack') || undefined
     const netlifyKey = request.headers.get('x-api-key-netlify') || undefined
 
-    const allSites = [...SITES_CONFIG, ...userSites.filter(u => !SITES_CONFIG.find(s => s.url === u.url))]
 
     // Fetch Better Stack data in parallel with site checks
     const [betterStackData, ...siteChecks] = await Promise.all([
@@ -233,7 +176,7 @@ export async function GET(request: NextRequest) {
     // Build response
     const sites: SiteStatus[] = allSites.map((site, index) => {
       const siteCheck = siteChecks[index]
-      const betterStackInfo = betterStackData.get(site.url)
+      const betterStackInfo = betterStackData.get(site.url.replace(/^https?:\/\//, '').replace(/\/$/, ''))
       const netlifyStatus = netlifyStatuses[index]
 
       // Determine status
@@ -245,7 +188,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Use Better Stack data if available, otherwise use direct check
-      const uptime = betterStackInfo?.uptime || (siteCheck.online ? 100 : 0)
+      const uptime = betterStackInfo?.uptime ?? null
       const responseTime = betterStackInfo?.responseTime || siteCheck.responseTime
 
       // Calculate a simple performance score based on response time
@@ -263,12 +206,12 @@ export async function GET(request: NextRequest) {
         githubRepo: site.githubRepo,
         netlifyId: site.netlifyId,
         status,
-        uptime: Math.round(uptime * 10) / 10,
+        uptime: uptime === null ? null : Math.round(uptime * 10) / 10,
         responseTime: Math.round(responseTime),
         performance,
         lastDeployStatus: netlifyStatus?.status,
         lastDeployTime: netlifyStatus?.time,
-        securityIssues: 0,
+        securityIssues: null,
         lastChecked: new Date().toISOString()
       }
     })
@@ -281,6 +224,9 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('Failed to fetch sites status:', error)
+    if (error instanceof Error && error.message.startsWith('sites.json:')) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
 
     return NextResponse.json(
       { error: 'Failed to fetch sites status' },

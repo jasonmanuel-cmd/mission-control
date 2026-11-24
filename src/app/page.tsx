@@ -87,7 +87,7 @@ export default function Dashboard() {
   ) : viewMode === 'overview' ? (
     <>
       <TriageBoard onSiteClick={handleSiteClick} />
-      <AllSitesOverview onSiteClick={handleSiteClick} userSites={sites} />
+      <AllSitesOverview onSiteClick={handleSiteClick} />
     </>
   ) : selectedSite ? (
     <div>
@@ -272,7 +272,7 @@ export default function Dashboard() {
               </div>
               <span className="text-xs text-gray-500">|</span>
               <span className="text-xs text-gray-500">
-                Monitoring {sites.length} websites across Netlify
+                Monitoring {sites.length} websites across your hosts
               </span>
             </div>
             <div className="text-xs text-gray-500">

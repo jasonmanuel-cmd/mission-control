@@ -27,21 +27,20 @@ export interface SiteStatus {
   githubRepo?: string
   netlifyId?: string
   status: 'online' | 'offline' | 'degraded' | 'loading'
-  uptime: number
+  uptime: number | null
   responseTime: number
   performance: number
   lastDeployStatus?: 'success' | 'failed' | 'building'
   lastDeployTime?: string
-  securityIssues: number
+  securityIssues: number | null
   lastChecked: string
 }
 
 interface AllSitesOverviewProps {
   onSiteClick?: (siteId: string) => void
-  userSites?: { id: string; name: string; url: string; githubRepo?: string; netlifyId?: string }[]
 }
 
-export default function AllSitesOverview({ onSiteClick, userSites }: AllSitesOverviewProps) {
+export default function AllSitesOverview({ onSiteClick }: AllSitesOverviewProps) {
   const [sites, setSites] = useState<SiteStatus[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -51,13 +50,7 @@ export default function AllSitesOverview({ onSiteClick, userSites }: AllSitesOve
     try {
       setIsRefreshing(true)
 
-      let url = '/api/sites/status'
-      if (userSites && userSites.length > 0) {
-        const encoded = encodeURIComponent(JSON.stringify(userSites.map(s => ({ id: s.id, name: s.name, url: s.url.replace(/^https?:\/\//, '').replace(/\/$/, ''), githubRepo: s.githubRepo, netlifyId: s.netlifyId }))))
-        url += `?sites=${encoded}`
-      }
-
-      const response = await fetch(url)
+      const response = await fetch('/api/sites/status')
 
       if (!response.ok) {
         throw new Error('Failed to fetch sites data')
@@ -72,7 +65,7 @@ export default function AllSitesOverview({ onSiteClick, userSites }: AllSitesOve
       setIsLoading(false)
       setIsRefreshing(false)
     }
-  }, [userSites])
+  }, [])
 
   useEffect(() => {
     fetchAllSitesData()
@@ -125,6 +118,12 @@ export default function AllSitesOverview({ onSiteClick, userSites }: AllSitesOve
       </div>
     )
   }
+
+  // Aggregate only over sites that have real data; null when none do.
+  const uptimes = sites.map(s => s.uptime).filter((u): u is number => u !== null)
+  const avgUptime = uptimes.length > 0 ? Math.round((uptimes.reduce((a, b) => a + b, 0) / uptimes.length) * 10) / 10 : null
+  const issues = sites.map(s => s.securityIssues).filter((n): n is number => n !== null)
+  const totalIssues = issues.length > 0 ? issues.reduce((a, b) => a + b, 0) : null
 
   return (
     <div className="space-y-4">
@@ -209,9 +208,9 @@ export default function AllSitesOverview({ onSiteClick, userSites }: AllSitesOve
                     <Activity className="w-3 h-3 text-electric-green-500" />
                   </div>
                   <div className={`text-lg font-bold font-mono ${
-                    site.uptime === 100 ? 'text-electric-green-500' : 'text-cyber-yellow'
+                    site.uptime === null ? 'text-gray-500' : site.uptime === 100 ? 'text-electric-green-500' : 'text-cyber-yellow'
                   }`}>
-                    {site.uptime}%
+                    {site.uptime === null ? 'no data' : `${site.uptime}%`}
                   </div>
                   <div className="text-[10px] text-gray-500 uppercase">Uptime</div>
                 </div>
@@ -249,13 +248,13 @@ export default function AllSitesOverview({ onSiteClick, userSites }: AllSitesOve
                 <div className="bg-cyber-gray rounded-lg p-2 text-center">
                   <div className="flex items-center justify-center gap-1 mb-1">
                     <Shield className={`w-3 h-3 ${
-                      site.securityIssues === 0 ? 'text-electric-green-500' : 'text-cyber-red'
+                      site.securityIssues === null ? 'text-gray-500' : site.securityIssues === 0 ? 'text-electric-green-500' : 'text-cyber-red'
                     }`} />
                   </div>
                   <div className={`text-lg font-bold font-mono ${
-                    site.securityIssues === 0 ? 'text-electric-green-500' : 'text-cyber-red'
+                    site.securityIssues === null ? 'text-gray-500' : site.securityIssues === 0 ? 'text-electric-green-500' : 'text-cyber-red'
                   }`}>
-                    {site.securityIssues}
+                    {site.securityIssues === null ? 'no data' : site.securityIssues}
                   </div>
                   <div className="text-[10px] text-gray-500 uppercase">Issues</div>
                 </div>
@@ -314,9 +313,7 @@ export default function AllSitesOverview({ onSiteClick, userSites }: AllSitesOve
         </div>
         <div className="cyber-card text-center">
           <div className="text-3xl font-bold font-mono text-neon-purple-500">
-            {sites.length > 0
-              ? Math.round(sites.reduce((sum, s) => sum + s.uptime, 0) / sites.length * 10) / 10
-              : 0}%
+            {avgUptime === null ? 'no data' : `${avgUptime}%`}
           </div>
           <div className="text-xs text-gray-500 uppercase mt-1">Avg Uptime</div>
         </div>
@@ -331,11 +328,9 @@ export default function AllSitesOverview({ onSiteClick, userSites }: AllSitesOve
         </div>
         <div className="cyber-card text-center">
           <div className={`text-3xl font-bold font-mono ${
-            sites.reduce((sum, s) => sum + s.securityIssues, 0) === 0
-              ? 'text-electric-green-500'
-              : 'text-cyber-red'
+            totalIssues === null ? 'text-gray-500' : totalIssues === 0 ? 'text-electric-green-500' : 'text-cyber-red'
           }`}>
-            {sites.reduce((sum, s) => sum + s.securityIssues, 0)}
+            {totalIssues === null ? 'no data' : totalIssues}
           </div>
           <div className="text-xs text-gray-500 uppercase mt-1">Total Issues</div>
         </div>

@@ -66,4 +66,18 @@ describe('checkVercelDeploy', () => {
     expect(url).toContain('teamId=team_1')
     expect(init.headers.Authorization).toBe('Bearer tok')
   })
+
+  it('no project / no token are marked unconfigured; API errors are not', async () => {
+    expect((await checkVercelDeploy(undefined, env, vi.fn() as any)).unconfigured).toBe(true)
+    expect((await checkVercelDeploy('p', {}, vi.fn() as any)).unconfigured).toBe(true)
+    expect((await checkVercelDeploy('p', env, vi.fn().mockResolvedValue(json({}, 403)) as any)).unconfigured).toBeFalsy()
+  })
+
+  it('a hanging request times out to nodata instead of hanging', async () => {
+    const hang = (_u: any, init: any) =>
+      new Promise((_res, rej) => init.signal.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' }))))
+    const r = await checkVercelDeploy('p', env, hang as any, 20)
+    expect(r.status).toBe('nodata')
+    expect(r.detail).toMatch(/timeout/i)
+  })
 })

@@ -14,7 +14,7 @@ const SLOW_MS = 3000
 
 export async function checkLive(url: string, opts: LiveCheckOptions = {}): Promise<LiveResult> {
   const fetchImpl = opts.fetchImpl ?? fetch
-  const timeoutMs = opts.timeoutMs ?? 10_000
+  const timeoutMs = opts.timeoutMs ?? 8_000
   const maxRedirects = opts.maxRedirects ?? 5
   const now = opts.now ?? (() => performance.now())
 

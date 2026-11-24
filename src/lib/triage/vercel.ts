@@ -5,17 +5,21 @@ export type DeployResult = TriagePart & { sha?: string; message?: string; create
 export async function checkVercelDeploy(
   project: string | undefined,
   env: { token?: string; teamId?: string },
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs = 5000
 ): Promise<DeployResult> {
-  if (!project) return { status: 'nodata', detail: 'no vercelProject configured' }
-  if (!env.token) return { status: 'nodata', detail: 'VERCEL_TOKEN not set' }
+  if (!project) return { status: 'nodata', detail: 'no vercelProject configured', unconfigured: true }
+  if (!env.token) return { status: 'nodata', detail: 'VERCEL_TOKEN not set', unconfigured: true }
 
   const params = new URLSearchParams({ projectId: project, limit: '1' })
   if (env.teamId) params.set('teamId', env.teamId)
 
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const res = await fetchImpl(`https://api.vercel.com/v6/deployments?${params}`, {
       headers: { Authorization: `Bearer ${env.token}` },
+      signal: controller.signal,
     })
     if (!res.ok) return { status: 'nodata', detail: `Vercel API returned ${res.status}` }
 
@@ -37,6 +41,9 @@ export async function checkVercelDeploy(
         return { ...info, status: 'warn', detail: `deploy ${String(d.state).toLowerCase()}` }
     }
   } catch (err: any) {
-    return { status: 'nodata', detail: String(err?.message ?? err) }
+    const timedOut = err?.name === 'AbortError'
+    return { status: 'nodata', detail: timedOut ? `Vercel API timeout after ${timeoutMs} ms` : String(err?.message ?? err) }
+  } finally {
+    clearTimeout(timer)
   }
 }

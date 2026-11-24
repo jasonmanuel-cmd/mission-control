@@ -49,4 +49,19 @@ describe('uptimeForSite', () => {
     expect(r.status).toBe('nodata')
     expect(r.detail).toContain('BETTER_STACK_UPTIME_API_KEY not set')
   })
+
+  it('missing key and unmatched monitor are unconfigured; API errors are not', async () => {
+    const noKey = await loadMonitorIndex(undefined, vi.fn())
+    expect(uptimeForSite({ url: 'https://a.com' }, noKey).unconfigured).toBe(true)
+    const idx = await indexOf([mon('1', 'https://other.com', 'up')])
+    expect(uptimeForSite({ url: 'https://a.com' }, idx).unconfigured).toBe(true)
+    const broken = await loadMonitorIndex('key', vi.fn().mockRejectedValue(new Error('401')))
+    expect(uptimeForSite({ url: 'https://a.com' }, broken).unconfigured).toBeFalsy()
+  })
+
+  it('a hanging Better Stack call times out to an error index', async () => {
+    const hang = vi.fn().mockImplementation(() => new Promise(() => {}))
+    const idx = await loadMonitorIndex('key', hang as any, 20)
+    expect(idx).toEqual({ error: expect.stringMatching(/timeout/i) })
+  })
 })

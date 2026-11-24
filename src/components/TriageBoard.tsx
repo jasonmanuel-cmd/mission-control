@@ -84,6 +84,12 @@ export default function TriageBoard({ onSiteClick }: { onSiteClick: (siteId: str
         </div>
       )}
 
+      {rows && rows.length === 0 && (
+        <div className="rounded-lg border border-cyber-border bg-cyber-dark p-4 text-sm text-gray-400">
+          No sites configured. Add sites to <span className="font-mono">sites.json</span> and redeploy.
+        </div>
+      )}
+
       <div className="space-y-2">
         {rows?.map(r => (
           <button

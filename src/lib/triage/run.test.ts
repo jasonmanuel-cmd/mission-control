@@ -57,4 +57,30 @@ describe('runTriage', () => {
     expect(r).toMatchObject({ id: 'a', name: 'A', url: 'https://a.com' })
     expect(new Date(r.checkedAt).toISOString()).toBe(r.checkedAt)
   })
+
+  it('unconfigured parts do not turn a healthy row amber', async () => {
+    const d = deps({
+      uptimeForSite: vi.fn().mockReturnValue({ status: 'nodata', detail: 'no key', unconfigured: true }),
+      checkVercelDeploy: vi.fn().mockResolvedValue({ status: 'nodata', detail: 'no project', unconfigured: true }),
+    })
+    const res = await runTriage(sites, d)
+    expect(res.every(r => r.overall === 'ok')).toBe(true)
+  })
+
+  it('a real integration error (nodata, configured) still turns the row amber', async () => {
+    const d = deps({ checkVercelDeploy: vi.fn().mockResolvedValue({ status: 'nodata', detail: 'Vercel API returned 403' }) })
+    const res = await runTriage(sites, d)
+    expect(res.every(r => r.overall === 'warn')).toBe(true)
+  })
+
+  it('everything unconfigured -> nodata overall', async () => {
+    const un = { status: 'nodata' as const, detail: 'x', unconfigured: true }
+    const d = deps({
+      uptimeForSite: vi.fn().mockReturnValue(un),
+      checkLive: vi.fn().mockResolvedValue(un),
+      checkVercelDeploy: vi.fn().mockResolvedValue(un),
+    })
+    const [r] = await runTriage(sites, d)
+    expect(r.overall).toBe('nodata')
+  })
 })

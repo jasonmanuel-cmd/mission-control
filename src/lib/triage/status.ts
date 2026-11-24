@@ -3,6 +3,8 @@ export type PartStatus = 'ok' | 'warn' | 'fail' | 'nodata'
 export interface TriagePart {
   status: PartStatus
   detail: string
+  /** true when the part simply isn't set up (no key / no project / no monitor); not a problem to flag */
+  unconfigured?: boolean
 }
 
 /** Worst of the parts: fail > warn > ok. nodata beside any real result counts as warn. */
