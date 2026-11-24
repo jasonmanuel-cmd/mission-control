@@ -27,6 +27,17 @@ describe('runTriage', () => {
     expect(Date.now() - t0).toBeLessThan(150)
   })
 
+  it('loads the Better Stack index concurrently with the live and deploy checks', async () => {
+    const slow = (ms: number) => new Promise(r => setTimeout(r, ms))
+    const d = deps({
+      loadMonitorIndex: vi.fn().mockImplementation(async () => { await slow(80); return { monitors: [] } }),
+      checkLive: vi.fn().mockImplementation(async () => { await slow(80); return { status: 'ok', detail: '' } }),
+    })
+    const t0 = Date.now()
+    await runTriage(sites.slice(0, 1), d)
+    expect(Date.now() - t0).toBeLessThan(140)
+  })
+
   it('turns a throwing part into nodata without rejecting', async () => {
     const d = deps({ checkLive: vi.fn().mockRejectedValue(new Error('kaboom')) })
     const res = await runTriage(sites, d)

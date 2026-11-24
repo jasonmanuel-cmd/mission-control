@@ -50,13 +50,16 @@ function overallOf(parts: TriagePart[]): PartStatus {
 }
 
 export async function runTriage(sites: SiteConfig[], deps: TriageDeps = defaultDeps()): Promise<SiteTriage[]> {
-  const index = await deps.loadMonitorIndex(deps.env.betterStackKey)
+  // Start the Better Stack load now; only the uptime part waits for it, so it overlaps the slow probes.
+  const indexPromise = deps
+    .loadMonitorIndex(deps.env.betterStackKey)
+    .catch((err: any): { error: string } => ({ error: String(err?.message ?? err) }))
   const vercelEnv = { token: deps.env.vercelToken, teamId: deps.env.vercelTeamId }
 
   return Promise.all(
     sites.map(async site => {
       const [uptime, live, deploy] = await Promise.all([
-        safe(() => deps.uptimeForSite(site, index)),
+        safe(async () => deps.uptimeForSite(site, await indexPromise)),
         safe(() => deps.checkLive(site.url)),
         safe(() => deps.checkVercelDeploy(site.vercelProject, vercelEnv)),
       ])
