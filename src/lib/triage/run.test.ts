@@ -1,0 +1,60 @@
+import { describe, it, expect, vi } from 'vitest'
+import { runTriage, type TriageDeps } from './run'
+
+const sites = [
+  { id: 'a', name: 'A', url: 'https://a.com', vercelProject: 'pa' },
+  { id: 'b', name: 'B', url: 'https://b.com' },
+  { id: 'c', name: 'C', url: 'https://c.com' },
+]
+const delay = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+function deps(over: Partial<TriageDeps> = {}): TriageDeps {
+  return {
+    loadMonitorIndex: vi.fn().mockResolvedValue({ monitors: [] }),
+    uptimeForSite: vi.fn().mockReturnValue({ status: 'ok', detail: 'up' }),
+    checkLive: vi.fn().mockResolvedValue({ status: 'ok', detail: 'fine' }),
+    checkVercelDeploy: vi.fn().mockResolvedValue({ status: 'ok', detail: 'deployed' }),
+    env: { betterStackKey: 'k', vercelToken: 't', vercelTeamId: undefined },
+    ...over,
+  }
+}
+
+describe('runTriage', () => {
+  it('runs sites in parallel', async () => {
+    const d = deps({ checkLive: vi.fn().mockImplementation(async () => { await delay(60); return { status: 'ok', detail: '' } }) })
+    const t0 = Date.now()
+    await runTriage(sites, d)
+    expect(Date.now() - t0).toBeLessThan(150)
+  })
+
+  it('turns a throwing part into nodata without rejecting', async () => {
+    const d = deps({ checkLive: vi.fn().mockRejectedValue(new Error('kaboom')) })
+    const res = await runTriage(sites, d)
+    expect(res[0].live).toEqual({ status: 'nodata', detail: 'kaboom' })
+    expect(res).toHaveLength(3)
+  })
+
+  it('overall is the worst of the three parts', async () => {
+    const d = deps({ checkLive: vi.fn().mockResolvedValue({ status: 'fail', detail: 'down' }) })
+    const res = await runTriage(sites, d)
+    expect(res.every(r => r.overall === 'fail')).toBe(true)
+  })
+
+  it('fetches the Better Stack index exactly once', async () => {
+    const d = deps()
+    await runTriage(sites, d)
+    expect(d.loadMonitorIndex).toHaveBeenCalledTimes(1)
+  })
+
+  it('passes each site its vercelProject and the token', async () => {
+    const d = deps()
+    await runTriage(sites, d)
+    expect(d.checkVercelDeploy).toHaveBeenCalledWith('pa', { token: 't', teamId: undefined })
+  })
+
+  it('returns id, name, url and an ISO checkedAt', async () => {
+    const [r] = await runTriage(sites, deps())
+    expect(r).toMatchObject({ id: 'a', name: 'A', url: 'https://a.com' })
+    expect(new Date(r.checkedAt).toISOString()).toBe(r.checkedAt)
+  })
+})
