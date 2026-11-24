@@ -1,0 +1,53 @@
+[
+  {
+    "id": "site-coai-bakersfield",
+    "name": "COAI Bakersfield",
+    "url": "https://coaibakersfield.com"
+  },
+  {
+    "id": "site-phils-cheesesteaks",
+    "name": "Phil's Cheesesteaks & More",
+    "url": "https://phils-cheesesteaks-and-more.com",
+    "githubRepo": "blunts954-png/phillycheesesteak",
+    "netlifyId": "5a51b258-ff08-4aea-9dbc-d0dfea340c0e"
+  },
+  {
+    "id": "site-edwin-ward",
+    "name": "Edwin Ward Consulting",
+    "url": "https://edwinwardconsulting.com",
+    "githubRepo": "blunts954-png/edwin",
+    "netlifyId": "eebbde7c-0d52-4a08-86c4-8fbcdeabd101"
+  },
+  {
+    "id": "site-dffb-senior",
+    "name": "DFFB Senior Living",
+    "url": "https://dffbseniorliving.com",
+    "githubRepo": "blunts954-png/dffb",
+    "netlifyId": "41483bef-df11-4fe8-b9f9-446f570b5986"
+  },
+  {
+    "id": "site-coai-builds",
+    "name": "COAI Builds",
+    "url": "https://coaibuilds.com"
+  },
+  {
+    "id": "site-tandmbak",
+    "name": "T&M Bakery",
+    "url": "https://tandmbak.com"
+  },
+  {
+    "id": "site-william-dean",
+    "name": "William Dean Real Photography",
+    "url": "https://williamdeanrealphotography.com"
+  },
+  {
+    "id": "site-poison-well",
+    "name": "Poison Well Records",
+    "url": "https://poisonwellrecords.com"
+  },
+  {
+    "id": "site-homegrow-money",
+    "name": "HomeGrow Money",
+    "url": "https://homegrowmoney.com"
+  }
+]
