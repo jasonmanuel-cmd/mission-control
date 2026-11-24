@@ -3,6 +3,7 @@ import { sslPart, checkDomainExpiry, type ExpiryPart } from './parts'
 import type { ExpiryCache, SiteExpiry } from './cache'
 
 export const EXPIRY_TTL_MS = 12 * 60 * 60 * 1000
+const SSL_TIMEOUT_MS = 6000
 
 export interface ExpiryDeps {
   checkSSL: (host: string) => Promise<SSLInfo>
@@ -12,7 +13,8 @@ export interface ExpiryDeps {
 }
 
 const defaults = (): ExpiryDeps => ({
-  checkSSL: realCheckSSL,
+  // Shorter than checkSSL's 10s default so a hung host can't stretch the whole triage run.
+  checkSSL: host => realCheckSSL(host, SSL_TIMEOUT_MS),
   checkDomain: host => checkDomainExpiry(host),
   cache: undefined,
   now: () => Date.now(),

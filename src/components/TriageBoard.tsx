@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { SiteTriage } from '@/lib/triage/run'
 import type { PartStatus, TriagePart } from '@/lib/triage/status'
+import { expirySummary } from './expirySummary'
 
 const REFRESH_MS = 60_000
 
@@ -26,6 +27,18 @@ function Cell({ title, part }: { title: string; part: TriagePart }) {
       <div className="text-[10px] uppercase tracking-wider opacity-70">{title}</div>
       <div className="text-sm font-semibold">{LABEL[part.status]}</div>
       <div className="text-xs opacity-80 truncate">{part.detail}</div>
+    </div>
+  )
+}
+
+/** Informational: shows SSL/domain days left; never changes the row colour. */
+function ExpiryCell({ expiry }: { expiry: SiteTriage['expiry'] }) {
+  const { status, text, title } = expirySummary(expiry)
+  return (
+    <div className={`rounded-lg border px-3 py-2 min-w-0 ${CELL[status]}`} title={title}>
+      <div className="text-[10px] uppercase tracking-wider opacity-70">Expiry</div>
+      <div className="text-sm font-semibold">{LABEL[status]}</div>
+      <div className="text-xs opacity-80 truncate">{text}</div>
     </div>
   )
 }
@@ -97,7 +110,7 @@ export default function TriageBoard({ onSiteClick }: { onSiteClick: (siteId: str
             onClick={() => onSiteClick(r.id)}
             className={`w-full text-left rounded-xl border bg-cyber-dark p-3 hover:bg-cyber-gray transition-colors ${ROW[r.overall]}`}
           >
-            <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,1fr))] gap-2 items-stretch">
+            <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.2fr)_repeat(4,minmax(0,1fr))] gap-2 items-stretch">
               <div className="min-w-0 flex flex-col justify-center">
                 <div className="font-semibold text-white truncate">{r.name}</div>
                 <div className="text-xs text-gray-500 truncate">{r.url.replace(/^https?:\/\//, '')}</div>
@@ -105,6 +118,7 @@ export default function TriageBoard({ onSiteClick }: { onSiteClick: (siteId: str
               <Cell title="Uptime" part={r.uptime} />
               <Cell title="Live site" part={r.live} />
               <Cell title="Vercel deploy" part={r.deploy} />
+              <ExpiryCell expiry={r.expiry} />
             </div>
           </button>
         ))}

@@ -7,8 +7,11 @@ const inDays = (d: number) => new Date(NOW + d * 86400_000).toISOString()
 const info = (over: Partial<SSLInfo> = {}): SSLInfo => ({ hostname: 'a.com', valid: true, daysRemaining: 90, validTo: inDays(90), ...over })
 
 describe('statusForDays', () => {
-  it.each([[31, 'ok'], [30, 'warn'], [8, 'warn'], [7, 'fail'], [0, 'fail'], [-3, 'fail']])('%i days -> %s', (d, s) => {
-    expect(statusForDays(d as number)).toBe(s)
+  it.each([[31, 'ok'], [30, 'warn'], [8, 'warn'], [7, 'fail'], [0, 'fail'], [-3, 'fail']])('domain: %i days -> %s', (d, s) => {
+    expect(statusForDays(d as number, 'domain')).toBe(s)
+  })
+  it.each([[29, 'ok'], [15, 'ok'], [14, 'warn'], [8, 'warn'], [7, 'fail'], [0, 'fail'], [-3, 'fail']])('ssl: %i days -> %s (certs auto-renew ~30 days out)', (d, s) => {
+    expect(statusForDays(d as number, 'ssl')).toBe(s)
   })
 })
 
@@ -25,8 +28,11 @@ describe('sslPart', () => {
   it('ok with days', () => {
     expect(sslPart(info(), NOW)).toMatchObject({ status: 'ok', days: 90 })
   })
-  it('warn at 20 days', () => {
-    expect(sslPart(info({ validTo: inDays(20) }), NOW).status).toBe('warn')
+  it('warn at 12 days', () => {
+    expect(sslPart(info({ validTo: inDays(12) }), NOW).status).toBe('warn')
+  })
+  it('an auto-renewing cert at 29 days is still ok (no false alarm)', () => {
+    expect(sslPart(info({ validTo: inDays(29) }), NOW).status).toBe('ok')
   })
   it('fail at 3 days', () => {
     expect(sslPart(info({ validTo: inDays(3) }), NOW).status).toBe('fail')
@@ -72,6 +78,14 @@ describe('checkDomainExpiry', () => {
     expect(f.mock.calls[0][0]).toBe('https://rdap.org/domain/example.com')
     expect(r).toMatchObject({ status: 'ok', days: 64, expiresAt: '2027-01-27T00:00:00Z' })
   })
+  it('sends a descriptive User-Agent (rdap.org returns 403 to the default Node one)', async () => {
+    const f = vi.fn().mockResolvedValue(good())
+    await checkDomainExpiry('example.com', f as any, NOW)
+    const headers = f.mock.calls[0][1].headers
+    expect(headers['User-Agent']).toMatch(/MissionControl/)
+    expect(headers['User-Agent']).not.toBe('node')
+    expect(headers.Accept).toBe('application/rdap+json')
+  })
   it('404 -> nodata mentioning 404', async () => {
     const r = await checkDomainExpiry('a.com', vi.fn().mockResolvedValue(rdap([], 404)) as any, NOW)
     expect(r.status).toBe('nodata')
@@ -92,6 +106,10 @@ describe('checkDomainExpiry', () => {
     const r = await checkDomainExpiry('a.com', hang as any, NOW, 20)
     expect(r.status).toBe('nodata')
     expect(r.detail).toMatch(/timeout/i)
+  })
+  it('a domain at 30 days is already a warning', async () => {
+    const f = vi.fn().mockResolvedValue(rdap([{ eventAction: 'expiration', eventDate: inDays(30) }]))
+    expect((await checkDomainExpiry('a.com', f as any, NOW)).status).toBe('warn')
   })
   it('a domain expiring in 5 days is fail', async () => {
     const f = vi.fn().mockResolvedValue(rdap([{ eventAction: 'expiration', eventDate: inDays(5) }]))

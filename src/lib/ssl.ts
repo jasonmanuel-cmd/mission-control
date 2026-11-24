@@ -10,7 +10,7 @@ export interface SSLInfo {
   error?: string
 }
 
-export async function checkSSL(hostname: string): Promise<SSLInfo> {
+export async function checkSSL(hostname: string, timeoutMs = 10000, port = 443): Promise<SSLInfo> {
   const cleanHostname = hostname.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
 
   if (typeof window !== 'undefined') {
@@ -23,16 +23,14 @@ export async function checkSSL(hostname: string): Promise<SSLInfo> {
   }
 
   const tls = await import('tls')
-  const net = await import('net')
 
   return new Promise((resolve) => {
-    const socket = new net.Socket()
     let settled = false
 
     const timeout = setTimeout(() => {
       if (!settled) {
         settled = true
-        socket.destroy()
+        tlsSocket.destroy()
         resolve({
           hostname: cleanHostname,
           valid: false,
@@ -40,25 +38,13 @@ export async function checkSSL(hostname: string): Promise<SSLInfo> {
           error: 'SSL check timed out'
         })
       }
-    }, 10000)
+    }, timeoutMs)
 
-    socket.on('error', (err) => {
-      if (!settled) {
-        settled = true
-        clearTimeout(timeout)
-        resolve({
-          hostname: cleanHostname,
-          valid: false,
-          daysRemaining: 0,
-          error: `Connection error: ${err.message}`
-        })
-      }
-    })
-
+    // tls.connect opens the TCP connection itself. (A pre-made, never-connected net.Socket here meant
+    // the handshake could never start, so every check used to end as "timed out".)
     const tlsSocket = tls.connect({
       host: cleanHostname,
-      port: 443,
-      socket,
+      port,
       servername: cleanHostname,
       rejectUnauthorized: false
     })
