@@ -1,0 +1,32 @@
+name: Triage alerts
+
+# Calls the app's alert endpoint every 5 minutes. A non-2xx response fails this job,
+# so GitHub emails you if the alert pipeline itself is broken.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: triage-alerts
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Run alert check
+        env:
+          ALERT_CRON_SECRET: ${{ secrets.ALERT_CRON_SECRET }}
+          ALERT_APP_URL: ${{ secrets.ALERT_APP_URL }}
+        run: |
+          if [ -z "$ALERT_CRON_SECRET" ] || [ -z "$ALERT_APP_URL" ]; then
+            echo "ALERT_CRON_SECRET and ALERT_APP_URL repo secrets must be set" >&2
+            exit 1
+          fi
+          curl --fail-with-body -sS --max-time 60 --retry 2 --retry-all-errors --retry-delay 5 \
+            -H "Authorization: Bearer $ALERT_CRON_SECRET" \
+            "$ALERT_APP_URL/api/cron/alerts"

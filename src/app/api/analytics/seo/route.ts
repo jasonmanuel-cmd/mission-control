@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { toSiteUrl, siteOrigin } from '@/lib/url'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,14 +72,14 @@ async function analyzeWebsite(url: string): Promise<{
 
   try {
     const startTime = Date.now()
-    const response = await fetch(`https://${url}`, {
+    const response = await fetch(toSiteUrl(url), {
       headers: {
         'User-Agent': 'COAI-SEOAnalyzer/1.0'
       }
     })
     loadTime = (Date.now() - startTime) / 1000
     html = await response.text()
-    httpsEnabled = url.startsWith('https://') || response.url.startsWith('https://')
+    httpsEnabled = toSiteUrl(url).startsWith('https://') || response.url.startsWith('https://')
   } catch (error) {
     console.error('Failed to fetch website:', error)
   }
@@ -334,7 +335,7 @@ function detectQuestionKeywords(html: string): string[] {
 
 async function checkRobotsTxt(url: string): Promise<boolean> {
   try {
-    const response = await fetch(`https://${url}/robots.txt`, { method: 'HEAD' })
+    const response = await fetch(`${siteOrigin(url)}/robots.txt`, { method: 'HEAD' })
     return response.ok
   } catch {
     return false
@@ -343,7 +344,7 @@ async function checkRobotsTxt(url: string): Promise<boolean> {
 
 async function checkSitemap(url: string): Promise<boolean> {
   try {
-    const response = await fetch(`https://${url}/sitemap.xml`, { method: 'HEAD' })
+    const response = await fetch(`${siteOrigin(url)}/sitemap.xml`, { method: 'HEAD' })
     return response.ok
   } catch {
     return false

@@ -1,0 +1,72 @@
+[
+  {
+    "id": "site-coai-bakersfield",
+    "name": "COAI Bakersfield",
+    "url": "https://coaibakersfield.com",
+    "vercelProject": "coaibakersfield",
+    "githubRepo": "jasonmanuel-cmd/coainewweb"
+  },
+  {
+    "id": "site-phils-cheesesteaks",
+    "name": "Phil's Cheesesteaks & More",
+    "url": "https://bakersfieldcheesesteak.com",
+    "vercelProject": "phillycheesesteak",
+    "githubRepo": "jasonmanuel-cmd/phillycheesesteak"
+  },
+  {
+    "id": "site-coai-builds",
+    "name": "COAI Builds",
+    "url": "https://coaibuilds.com",
+    "vercelProject": "tradinglanding",
+    "githubRepo": "jasonmanuel-cmd/tradinglanding"
+  },
+  {
+    "id": "site-tandmbak",
+    "name": "T&M Bakery",
+    "url": "https://tandmbak.com",
+    "vercelProject": "tandm-hauling-bakersfield",
+    "githubRepo": "jasonmanuel-cmd/tandm"
+  },
+  {
+    "id": "site-william-dean",
+    "name": "William Dean Real Photography",
+    "url": "https://williamdeanrealphotography.com",
+    "vercelProject": "williamdean",
+    "githubRepo": "jasonmanuel-cmd/williamdean"
+  },
+  {
+    "id": "site-poison-well",
+    "name": "Poison Well Records",
+    "url": "https://poisonwellrecords.com",
+    "vercelProject": "poisonrecord",
+    "githubRepo": "jasonmanuel-cmd/poisonrecord"
+  },
+  {
+    "id": "site-homegrow-money",
+    "name": "HomeGrow Money",
+    "url": "https://homegrowmoney.com",
+    "vercelProject": "greenhome-6cx9",
+    "githubRepo": "jasonmanuel-cmd/greenhome"
+  },
+  {
+    "id": "site-callharbison",
+    "name": "Call Harbison",
+    "url": "https://callharbison.com",
+    "vercelProject": "hbh",
+    "githubRepo": "jasonmanuel-cmd/HBH"
+  },
+  {
+    "id": "site-aspen2homes",
+    "name": "Aspen 2 Homes",
+    "url": "https://aspen2homes.com",
+    "vercelProject": "aspen2-astro-preview",
+    "githubRepo": "jasonmanuel-cmd/apen2website"
+  },
+  {
+    "id": "site-mgsusa",
+    "name": "MGS USA LLC",
+    "url": "https://mgsusa.llc",
+    "vercelProject": "mgsusa-llc",
+    "githubRepo": "jasonmanuel-cmd/mgsusa.llc"
+  }
+]
